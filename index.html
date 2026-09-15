@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>House Hunt</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #1a2420;
+      --ink-soft: #3d4a44;
+      --muted: #6b7a72;
+      --paper: #eef2ef;
+      --panel: rgba(255, 255, 255, 0.72);
+      --line: rgba(26, 36, 32, 0.12);
+      --accent: #1f6b4f;
+      --accent-deep: #0f3d2e;
+      --warm: #c46b2c;
+      --good: #1f6b4f;
+      --mid: #b07a1a;
+      --low: #9a3b2f;
+      --shadow: 0 18px 50px rgba(15, 40, 30, 0.12);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: "Outfit", system-ui, sans-serif;
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(31, 107, 79, 0.18), transparent 55%),
+        radial-gradient(900px 500px at 100% 0%, rgba(196, 107, 44, 0.12), transparent 50%),
+        linear-gradient(165deg, #dfe8e2 0%, #f4f7f5 40%, #e7eee9 100%);
+      min-height: 100vh;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.35;
+      background-image:
+        linear-gradient(rgba(26, 36, 32, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(26, 36, 32, 0.04) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+    }
+
+    .wrap {
+      width: min(1120px, calc(100% - 2rem));
+      margin: 0 auto;
+      padding: 2.5rem 0 4rem;
+      position: relative;
+    }
+
+    header.hero {
+      display: grid;
+      gap: 0.75rem;
+      margin-bottom: 2rem;
+      animation: rise 0.7s ease both;
+    }
+
+    .brand {
+      font-family: "Fraunces", Georgia, serif;
+      font-size: clamp(2.6rem, 6vw, 4rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 0.95;
+      color: var(--accent-deep);
+      margin: 0;
+    }
+
+    .lede {
+      margin: 0;
+      max-width: 36rem;
+      color: var(--ink-soft);
+      font-size: 1.05rem;
+      font-weight: 300;
+      line-height: 1.5;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      margin: 1.25rem 0 1.75rem;
+      animation: rise 0.7s ease 0.08s both;
+    }
+
+    .btn {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      backdrop-filter: blur(10px);
+      color: var(--ink);
+      font: inherit;
+      font-weight: 500;
+      padding: 0.65rem 1rem;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+    }
+    .btn:hover { transform: translateY(-1px); border-color: rgba(31, 107, 79, 0.35); }
+    .btn.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #f5faf7;
+    }
+    .btn.primary:hover { background: var(--accent-deep); }
+
+    .sort-label {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-left: auto;
+    }
+    select.sort {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 999px;
+      padding: 0.55rem 0.9rem;
+      font: inherit;
+      color: var(--ink);
+    }
+
+    .weights {
+      display: none;
+      background: var(--panel);
+      backdrop-filter: blur(14px);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.35rem 1.4rem;
+      margin-bottom: 1.75rem;
+      box-shadow: var(--shadow);
+      animation: rise 0.35s ease both;
+    }
+    .weights.open { display: block; }
+
+    .weights h2 {
+      font-family: "Fraunces", Georgia, serif;
+      font-size: 1.35rem;
+      margin: 0 0 0.35rem;
+      color: var(--accent-deep);
+    }
+    .weights .hint {
+      margin: 0 0 1.1rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .weight-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.1rem 1.5rem;
+    }
+    .weight-block h3 {
+      margin: 0 0 0.65rem;
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .slider-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.35rem 0.75rem;
+      align-items: center;
+      margin-bottom: 0.55rem;
+    }
+    .slider-row label { font-size: 0.92rem; color: var(--ink-soft); }
+    .slider-row .val {
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+      color: var(--accent-deep);
+      min-width: 3.2rem;
+      text-align: right;
+    }
+    input[type="range"] {
+      grid-column: 1 / -1;
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .list {
+      display: grid;
+      gap: 0.85rem;
+    }
+
+    .house {
+      background: var(--panel);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 1rem 1.15rem;
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+      animation: rise 0.55s ease both;
+      box-shadow: 0 8px 24px rgba(15, 40, 30, 0.05);
+    }
+    .house:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow);
+      border-color: rgba(31, 107, 79, 0.28);
+    }
+    .house.open {
+      border-color: rgba(31, 107, 79, 0.4);
+      box-shadow: var(--shadow);
+    }
+
+    .house-top {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .score-badge {
+      width: 4.1rem;
+      height: 4.1rem;
+      border-radius: 1.1rem;
+      display: grid;
+      place-items: center;
+      font-family: "Fraunces", Georgia, serif;
+      font-size: 1.55rem;
+      font-weight: 700;
+      color: #fff;
+      background: linear-gradient(145deg, var(--accent), var(--accent-deep));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
+    }
+    .score-badge.mid { background: linear-gradient(145deg, #c48a2a, #7a5410); }
+    .score-badge.low { background: linear-gradient(145deg, #b85a48, #6e2a22); }
+
+    .addr {
+      margin: 0;
+      font-family: "Fraunces", Georgia, serif;
+      font-size: 1.2rem;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+    }
+    .meta {
+      margin: 0.35rem 0 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem 0.85rem;
+    }
+    .meta strong { color: var(--ink-soft); font-weight: 560; }
+
+    .price {
+      font-family: "Fraunces", Georgia, serif;
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--accent-deep);
+      white-space: nowrap;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.85rem;
+    }
+    .chip {
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--ink-soft);
+      background: rgba(31, 107, 79, 0.08);
+      border: 1px solid rgba(31, 107, 79, 0.12);
+      padding: 0.28rem 0.55rem;
+      border-radius: 999px;
+    }
+    .chip span { color: var(--muted); font-weight: 400; margin-right: 0.25rem; }
+
+    .details {
+      display: none;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--line);
+      animation: rise 0.3s ease both;
+    }
+    .house.open .details { display: block; }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 0.85rem;
+    }
+    .stat {
+      padding: 0.7rem 0.8rem;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.55);
+      border: 1px solid var(--line);
+    }
+    .stat .k {
+      display: block;
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.2rem;
+    }
+    .stat .v {
+      font-weight: 600;
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .breakdown {
+      margin-top: 0.9rem;
+      display: grid;
+      gap: 0.4rem;
+    }
+    .bar-row {
+      display: grid;
+      grid-template-columns: 7.5rem 1fr 2.2rem;
+      gap: 0.6rem;
+      align-items: center;
+      font-size: 0.85rem;
+    }
+    .bar-row .name { color: var(--ink-soft); }
+    .bar-track {
+      height: 0.45rem;
+      background: rgba(26, 36, 32, 0.08);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      width: 0;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--accent), #3d9b72);
+      transition: width 0.45s ease;
+    }
+    .bar-row .n {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+      color: var(--accent-deep);
+    }
+
+    .contact {
+      margin-top: 0.85rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    footer.note {
+      margin-top: 2rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-align: center;
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-width: 700px) {
+      .house-top { grid-template-columns: auto 1fr; }
+      .price { grid-column: 2; }
+      .sort-label { margin-left: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <h1 class="brand">House Hunt</h1>
+      <p class="lede">Compare shortlisted rentals by weighted commute, price, and home fit. Adjust the weights and watch the rankings update.</p>
+    </header>
+
+    <div class="toolbar">
+      <button class="btn primary" id="toggleWeights" type="button">Edit weights</button>
+      <button class="btn" id="resetWeights" type="button">Reset weights</button>
+      <span class="sort-label">Sort by</span>
+      <select class="sort" id="sortBy" aria-label="Sort listings">
+        <option value="score">Composite score</option>
+        <option value="price">Price (low → high)</option>
+        <option value="location">Location score</option>
+        <option value="totalDrive">Total drive time</option>
+      </select>
+    </div>
+
+    <section class="weights" id="weightsPanel" aria-label="Score weights">
+      <h2>Score weights</h2>
+      <p class="hint">Location sub-weights blend into the Location pillar. Final weights decide how Location, Price, and home features combine. Values normalize automatically.</p>
+      <div class="weight-grid">
+        <div class="weight-block" id="finalWeights"></div>
+        <div class="weight-block" id="locationWeights"></div>
+      </div>
+    </section>
+
+    <section class="list" id="list" aria-live="polite"></section>
+    <footer class="note">Scores are relative within this short list (1–10). Open a listing for commute and factor breakdown.</footer>
+  </div>
+
+  <script>
+    const RAW = [
+      { address: "649 Cary Woods Cir, Cary, IL 60013", price: 2250, beds: 3, baths: 2.5, sqft: 1900, girls: 12, school: 23, work: 45, msb: 19, schoolWork: 52, totalDrive: 151, parking: "2 car garage", basement: true, contact: "Real Property Management Chicago Group", notes: "" },
+      { address: "2308 Dawson Ln, Algonquin, IL 60102", price: 2250, beds: 2, baths: 2.5, sqft: 1710, girls: 25, school: 25, work: 40, msb: 13, schoolWork: 54, totalDrive: 157, parking: "2 car garage", basement: true, contact: "Real Property Management Northwest Chicago Suburbs", notes: "" },
+      { address: "742 Pointe Dr, # 742, Crystal Lake, IL 60014", price: 2170, beds: 3, baths: 2.5, sqft: 1520, girls: 19, school: 28, work: 46, msb: 16, schoolWork: 57, totalDrive: 166, parking: "2 car garage", basement: false, contact: "DINESH AGARWAL (224) 288-0882", notes: "Agent Owned" },
+      { address: "3829 Eastway Dr. Island Lake", price: 2250, beds: 3, baths: 2, sqft: 1356, girls: 14, school: 27, work: 48, msb: 28, schoolWork: 56, totalDrive: 173, parking: "2.5 car garage", basement: true, contact: "", notes: "" },
+      { address: "1441 Meadowsedge Ln, Carpentersville, IL 60110", price: 2415, beds: 2, baths: 1.5, sqft: null, girls: 28, school: 25, work: 35, msb: 9, schoolWork: 54, totalDrive: 151, parking: "2 car garage", basement: true, contact: "American Homes 4 Rent (224) 243-3416", notes: "" },
+      { address: "515 Eichler Dr West Dundee, IL 60118", price: 2400, beds: 2, baths: 1.5, sqft: 1250, girls: 25, school: 19, work: 31, msb: 4, schoolWork: 48, totalDrive: 127, parking: "2 car garage", basement: false, contact: "", notes: "" },
+      { address: "195 Tollview Ter, Gilberts, IL", price: 2300, beds: 3, baths: 1.5, sqft: null, girls: 32, school: 28, work: 35, msb: 12, schoolWork: 57, totalDrive: 164, parking: "2 car garage", basement: false, contact: "Frank Lamco (815) 893-9264", notes: "Pool" },
+      { address: "45 Golfview Rd, Lake Zurich, IL 60047", price: 2499, beds: 3, baths: 1, sqft: 1050, girls: 8, school: 16, work: 37, msb: 32, schoolWork: 45, totalDrive: 138, parking: "2 car garage", basement: false, contact: "Anastasiia Chornii (773) 985-8499", notes: "" },
+      { address: "506 Barrett Street, Elgin", price: 2500, beds: 3, baths: 1, sqft: 1430, girls: 33, school: 25, work: 31, msb: 18, schoolWork: 54, totalDrive: 161, parking: "2 car garage", basement: false, contact: "", notes: "" },
+      { address: "3211 S Ronan Dr # 0, Lake in the Hills, IL 60156", price: 2500, beds: 2, baths: 2.5, sqft: 1790, girls: 28, school: 32, work: 46, msb: 20, schoolWork: 61, totalDrive: 187, parking: "2 car garage", basement: false, contact: "", notes: "Listing id 12749810" },
+    ];
+
+    const DEFAULT_FINAL = {
+      location: 35,
+      price: 35,
+      parking: 0,
+      basement: 15,
+      baths: 7.5,
+      sqft: 7.5,
+    };
+    const DEFAULT_LOC = {
+      school: 30,
+      msb: 30,
+      schoolWork: 25,
+      girls: 7.5,
+      work: 7.5,
+    };
+
+    const FINAL_LABELS = {
+      location: "Location",
+      price: "Price",
+      parking: "Garage",
+      basement: "Basement",
+      baths: "Baths",
+      sqft: "Sq Ft",
+    };
+    const LOC_LABELS = {
+      school: "School",
+      msb: "MSB",
+      schoolWork: "School/Work",
+      girls: "Girls",
+      work: "Work",
+    };
+
+    let finalW = { ...DEFAULT_FINAL };
+    let locW = { ...DEFAULT_LOC };
+    let openId = null;
+
+    function median(nums) {
+      const a = [...nums].sort((x, y) => x - y);
+      const mid = Math.floor(a.length / 2);
+      return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
+    }
+
+    function scoreLowerBetter(values) {
+      const known = values.filter((v) => v != null);
+      const min = Math.min(...known);
+      const max = Math.max(...known);
+      return values.map((v) => {
+        if (v == null) return null;
+        if (max === min) return 10;
+        return 10 - (9 * (v - min)) / (max - min);
+      });
+    }
+
+    function scoreHigherBetter(values) {
+      const known = values.filter((v) => v != null);
+      const min = Math.min(...known);
+      const max = Math.max(...known);
+      return values.map((v) => {
+        if (v == null) return null;
+        if (max === min) return 10;
+        return 1 + (9 * (v - min)) / (max - min);
+      });
+    }
+
+    function round1(n) {
+      return Math.round(n * 10) / 10;
+    }
+
+    function formatMoney(n) {
+      return "$" + n.toLocaleString("en-US");
+    }
+
+    function formatMins(m) {
+      if (m == null) return "—";
+      if (m < 60) return m + " min";
+      const h = Math.floor(m / 60);
+      const r = m % 60;
+      return r === 0 ? h + " hr" : h + " hr " + r + " min";
+    }
+
+    function shortAddress(a) {
+      return a.split(",")[0].trim();
+    }
+
+    function garageCars(text) {
+      const m = String(text || "").match(/([\d.]+)\s*car/i);
+      return m ? parseFloat(m[1]) : null;
+    }
+
+    function normalize(map) {
+      const sum = Object.values(map).reduce((a, b) => a + b, 0);
+      const out = {};
+      for (const [k, v] of Object.entries(map)) out[k] = sum > 0 ? v / sum : 0;
+      return out;
+    }
+
+    function scoreAll() {
+      const sqftMedian = median(RAW.map((h) => h.sqft).filter((v) => v != null));
+      const houses = RAW.map((h, i) => ({
+        ...h,
+        id: i,
+        sqftFilled: h.sqft != null ? h.sqft : sqftMedian,
+        garage: garageCars(h.parking),
+      }));
+
+      const girlsS = scoreLowerBetter(houses.map((h) => h.girls));
+      const schoolS = scoreLowerBetter(houses.map((h) => h.school));
+      const workS = scoreLowerBetter(houses.map((h) => h.work));
+      const msbS = scoreLowerBetter(houses.map((h) => h.msb));
+      const schoolWorkS = scoreLowerBetter(houses.map((h) => h.schoolWork));
+      const priceS = scoreLowerBetter(houses.map((h) => h.price));
+      const bathsS = scoreHigherBetter(houses.map((h) => h.baths));
+      const sqftS = scoreHigherBetter(houses.map((h) => h.sqftFilled));
+      const basementS = houses.map((h) => (h.basement ? 10 : 1));
+      const garageVals = houses.map((h) => h.garage);
+      const garageS = garageVals.every((v) => v == null)
+        ? houses.map(() => 10)
+        : scoreHigherBetter(garageVals.map((v) => (v == null ? 0 : v)));
+
+      const locN = normalize(locW);
+      const finN = normalize(finalW);
+
+      return houses.map((h, i) => {
+        const location =
+          locN.school * schoolS[i] +
+          locN.msb * msbS[i] +
+          locN.schoolWork * schoolWorkS[i] +
+          locN.girls * girlsS[i] +
+          locN.work * workS[i];
+        const final =
+          finN.location * location +
+          finN.price * priceS[i] +
+          finN.parking * garageS[i] +
+          finN.basement * basementS[i] +
+          finN.baths * bathsS[i] +
+          finN.sqft * sqftS[i];
+        return {
+          ...h,
+          scores: {
+            location: round1(location),
+            price: round1(priceS[i]),
+            basement: basementS[i],
+            baths: round1(bathsS[i]),
+            sqft: round1(sqftS[i]),
+            garage: round1(garageS[i]),
+            final: round1(final),
+          },
+        };
+      });
+    }
+
+    function scoreClass(s) {
+      if (s >= 6.5) return "";
+      if (s >= 4.5) return "mid";
+      return "low";
+    }
+
+    function renderWeightBlock(container, map, labels, onChange) {
+      container.innerHTML = "";
+      const title = document.createElement("h3");
+      title.textContent = container.id === "finalWeights" ? "Final mix" : "Location mix";
+      container.appendChild(title);
+
+      for (const [key, label] of Object.entries(labels)) {
+        const row = document.createElement("div");
+        row.className = "slider-row";
+        row.innerHTML = `
+          <label for="${container.id}-${key}">${label}</label>
+          <span class="val">${map[key]}%</span>
+          <input type="range" id="${container.id}-${key}" min="0" max="50" step="0.5" value="${map[key]}" />
+        `;
+        const input = row.querySelector("input");
+        const val = row.querySelector(".val");
+        input.addEventListener("input", () => {
+          map[key] = parseFloat(input.value);
+          val.textContent = map[key] + "%";
+          onChange();
+        });
+        container.appendChild(row);
+      }
+    }
+
+    function renderList() {
+      let houses = scoreAll();
+      const sortBy = document.getElementById("sortBy").value;
+      houses = [...houses].sort((a, b) => {
+        if (sortBy === "price") return a.price - b.price;
+        if (sortBy === "location") return b.scores.location - a.scores.location;
+        if (sortBy === "totalDrive") return a.totalDrive - b.totalDrive;
+        return b.scores.final - a.scores.final;
+      });
+
+      const list = document.getElementById("list");
+      list.innerHTML = "";
+
+      houses.forEach((h, idx) => {
+        const el = document.createElement("article");
+        el.className = "house" + (openId === h.id ? " open" : "");
+        el.style.animationDelay = idx * 0.04 + "s";
+        el.tabIndex = 0;
+        el.setAttribute("role", "button");
+        el.setAttribute("aria-expanded", openId === h.id ? "true" : "false");
+
+        const sqftLabel = h.sqft != null ? h.sqft.toLocaleString() + " sq ft" : "Sq ft n/a";
+        el.innerHTML = `
+          <div class="house-top">
+            <div class="score-badge ${scoreClass(h.scores.final)}">${h.scores.final.toFixed(1)}</div>
+            <div>
+              <h2 class="addr">${shortAddress(h.address)}</h2>
+              <p class="meta">
+                <span><strong>${h.beds}</strong> bed</span>
+                <span><strong>${h.baths}</strong> bath</span>
+                <span><strong>${sqftLabel}</strong></span>
+                <span>${h.basement ? "Basement" : "No basement"}</span>
+                ${h.notes ? `<span>${h.notes}</span>` : ""}
+              </p>
+            </div>
+            <div class="price">${formatMoney(h.price)}</div>
+          </div>
+          <div class="chips">
+            <div class="chip"><span>School</span>${formatMins(h.school)}</div>
+            <div class="chip"><span>MSB</span>${formatMins(h.msb)}</div>
+            <div class="chip"><span>School/Work</span>${formatMins(h.schoolWork)}</div>
+            <div class="chip"><span>Girls</span>${formatMins(h.girls)}</div>
+            <div class="chip"><span>Work</span>${formatMins(h.work)}</div>
+          </div>
+          <div class="details">
+            <div class="detail-grid">
+              <div class="stat"><span class="k">Full address</span><span class="v">${h.address}</span></div>
+              <div class="stat"><span class="k">Total drive</span><span class="v">${formatMins(h.totalDrive)}</span></div>
+              <div class="stat"><span class="k">Parking</span><span class="v">${h.parking || "—"}</span></div>
+              <div class="stat"><span class="k">Location score</span><span class="v">${h.scores.location}</span></div>
+            </div>
+            <div class="breakdown">
+              ${factorBar("Location", h.scores.location)}
+              ${factorBar("Price", h.scores.price)}
+              ${factorBar("Basement", h.scores.basement)}
+              ${factorBar("Baths", h.scores.baths)}
+              ${factorBar("Sq Ft", h.scores.sqft)}
+            </div>
+            ${h.contact ? `<p class="contact">Contact: ${h.contact}</p>` : ""}
+          </div>
+        `;
+
+        const toggle = () => {
+          openId = openId === h.id ? null : h.id;
+          renderList();
+        };
+        el.addEventListener("click", toggle);
+        el.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggle();
+          }
+        });
+        list.appendChild(el);
+
+        // Animate bars after mount
+        requestAnimationFrame(() => {
+          el.querySelectorAll(".bar-fill").forEach((bar) => {
+            bar.style.width = bar.dataset.w + "%";
+          });
+        });
+      });
+    }
+
+    function factorBar(name, score) {
+      const pct = Math.max(0, Math.min(100, (score / 10) * 100));
+      return `
+        <div class="bar-row">
+          <span class="name">${name}</span>
+          <div class="bar-track"><div class="bar-fill" data-w="${pct}"></div></div>
+          <span class="n">${score}</span>
+        </div>
+      `;
+    }
+
+    function refresh() {
+      renderList();
+    }
+
+    document.getElementById("toggleWeights").addEventListener("click", () => {
+      document.getElementById("weightsPanel").classList.toggle("open");
+    });
+    document.getElementById("resetWeights").addEventListener("click", () => {
+      finalW = { ...DEFAULT_FINAL };
+      locW = { ...DEFAULT_LOC };
+      renderWeightBlock(document.getElementById("finalWeights"), finalW, FINAL_LABELS, refresh);
+      renderWeightBlock(document.getElementById("locationWeights"), locW, LOC_LABELS, refresh);
+      refresh();
+    });
+    document.getElementById("sortBy").addEventListener("change", refresh);
+
+    renderWeightBlock(document.getElementById("finalWeights"), finalW, FINAL_LABELS, refresh);
+    renderWeightBlock(document.getElementById("locationWeights"), locW, LOC_LABELS, refresh);
+    refresh();
+  </script>
+</body>
+</html>
