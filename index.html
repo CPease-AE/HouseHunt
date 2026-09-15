@@ -221,11 +221,12 @@
       backdrop-filter: blur(12px);
       border: 1px solid var(--line);
       border-radius: var(--radius);
-      padding: 1rem 1.15rem;
+      padding: 0;
       cursor: pointer;
       transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
       animation: rise 0.55s ease both;
       box-shadow: 0 8px 24px rgba(15, 40, 30, 0.05);
+      overflow: hidden;
     }
     .house:hover {
       transform: translateY(-2px);
@@ -237,35 +238,51 @@
       box-shadow: var(--shadow);
     }
 
-    .house-top {
+    .house-summary {
       display: grid;
-      grid-template-columns: auto auto 1fr auto;
-      gap: 1rem;
-      align-items: center;
+      grid-template-columns: 10.5rem 1fr;
+      align-items: stretch;
+      min-height: 10.5rem;
     }
 
-    .thumb {
-      width: 5.5rem;
-      height: 4.2rem;
-      border-radius: 12px;
+    .thumb,
+    .thumb-placeholder {
+      width: 10.5rem;
+      height: 10.5rem;
+      min-height: 10.5rem;
+      aspect-ratio: 1 / 1;
       object-fit: cover;
-      background: rgba(26, 36, 32, 0.08);
-      border: 1px solid var(--line);
+      border-radius: 0;
+      border: none;
+      border-right: 1px solid var(--line);
+      align-self: start;
     }
     .thumb-placeholder {
-      width: 5.5rem;
-      height: 4.2rem;
-      border-radius: 12px;
       background:
         linear-gradient(145deg, rgba(31,107,79,0.12), rgba(26,36,32,0.06));
-      border: 1px dashed rgba(26, 36, 32, 0.18);
       display: grid;
       place-items: center;
       color: var(--muted);
-      font-size: 0.7rem;
+      font-size: 0.78rem;
       text-align: center;
-      padding: 0.35rem;
-      line-height: 1.2;
+      padding: 0.75rem;
+      line-height: 1.25;
+    }
+
+    .house-main {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0.75rem;
+      padding: 0.95rem 1.15rem;
+      min-width: 0;
+    }
+
+    .house-top {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 0.85rem 1rem;
+      align-items: center;
     }
 
     .score-badge {
@@ -343,8 +360,8 @@
 
     .details {
       display: none;
-      margin-top: 1rem;
-      padding-top: 1rem;
+      margin: 0;
+      padding: 1rem 1.15rem 1.15rem;
       border-top: 1px solid var(--line);
       animation: rise 0.3s ease both;
     }
@@ -443,8 +460,13 @@
     }
 
     @media (max-width: 700px) {
+      .house-summary { grid-template-columns: 7.5rem 1fr; min-height: 7.5rem; }
+      .thumb, .thumb-placeholder {
+        width: 7.5rem;
+        height: 7.5rem;
+        min-height: 7.5rem;
+      }
       .house-top { grid-template-columns: auto 1fr; }
-      .thumb, .thumb-placeholder { grid-row: span 2; }
       .price { grid-column: 2; }
       .sort-label { margin-left: 0; }
     }
@@ -506,6 +528,7 @@
       price: 35,
       parking: 0,
       basement: 15,
+      type: 10,
       baths: 7.5,
       beds: 3.75,
       sqft: 3.75,
@@ -523,6 +546,7 @@
       price: "Price",
       parking: "Garage",
       basement: "Basement",
+      type: "Type",
       baths: "Baths",
       beds: "Beds",
       sqft: "Sq Ft",
@@ -592,6 +616,64 @@
       return m ? parseFloat(m[1]) : null;
     }
 
+    function normalizeBasement(raw) {
+      if (typeof raw === "boolean") return raw ? "finished" : "unknown";
+      const s = String(raw || "").trim().toLowerCase();
+      if (!s) return "unknown";
+      if (/^(yes|y|finished|fin|true)$/.test(s)) return "finished";
+      if (/^(unfinished|unfin)$/.test(s)) return "unfinished";
+      if (/^(unknown|unk|\?)$/.test(s)) return "unknown";
+      if (/^(no|n|none|0|false)$/.test(s)) return "none";
+      return "unknown";
+    }
+
+    function basementScore(kind) {
+      switch (normalizeBasement(kind)) {
+        case "finished": return 10;
+        case "unfinished": return 7;
+        case "unknown": return 2.5;
+        case "none": return 0;
+        default: return 2.5;
+      }
+    }
+
+    function basementLabel(kind) {
+      const k = normalizeBasement(kind);
+      return k.charAt(0).toUpperCase() + k.slice(1);
+    }
+
+    function normalizeType(raw) {
+      const s = String(raw || "").trim().toLowerCase();
+      if (!s) return "unknown";
+      if (/single[\s-]?family|sfh|^sf$|house|detached/.test(s)) return "single-family";
+      if (/town\s*-?\s*home|townhouse|^th$|row\s*home/.test(s)) return "townhome";
+      return "unknown";
+    }
+
+    function typeLabel(raw) {
+      const t = normalizeType(raw);
+      if (t === "single-family") return "Single Family";
+      if (t === "townhome") return "Townhome";
+      return "Type unknown";
+    }
+
+    /** SF+basement=10, TH+basement=7, SF+none=5, TH+none=0 */
+    function typeScore(typeRaw, basementRaw) {
+      const type = normalizeType(typeRaw);
+      const basement = normalizeBasement(basementRaw);
+      const hasBasement = basement === "finished" || basement === "unfinished";
+      const noBasement = basement === "none";
+      const sfWith = 10, thWith = 7, sfNone = 5, thNone = 0;
+      function forType(t, withB) {
+        if (t === "single-family") return withB ? sfWith : sfNone;
+        if (t === "townhome") return withB ? thWith : thNone;
+        return withB ? (sfWith + thWith) / 2 : (sfNone + thNone) / 2;
+      }
+      if (hasBasement) return forType(type, true);
+      if (noBasement) return forType(type, false);
+      return (forType(type, true) + forType(type, false)) / 2;
+    }
+
     function normalize(map) {
       const sum = Object.values(map).reduce((a, b) => a + b, 0);
       const out = {};
@@ -632,7 +714,8 @@
       const bedsS = scoreHigherBetter(houses.map((h) => h.beds));
       const bathsS = scoreHigherBetter(houses.map((h) => h.baths));
       const sqftS = scoreHigherBetter(houses.map((h) => h.sqftFilled));
-      const basementS = houses.map((h) => (h.basement ? 10 : 1));
+      const basementS = houses.map((h) => basementScore(h.basement));
+      const typeS = houses.map((h) => typeScore(h.type, h.basement));
       const garageVals = houses.map((h) => h.garage);
       const garageS = garageVals.every((v) => v == null)
         ? houses.map(() => 10)
@@ -653,6 +736,7 @@
           finN.price * priceS[i] +
           finN.parking * garageS[i] +
           finN.basement * basementS[i] +
+          (finN.type || 0) * typeS[i] +
           finN.baths * bathsS[i] +
           (finN.beds || 0) * bedsS[i] +
           finN.sqft * sqftS[i];
@@ -662,6 +746,7 @@
             location: round1(location),
             price: round1(priceS[i]),
             basement: basementS[i],
+            type: round1(typeS[i]),
             baths: round1(bathsS[i]),
             beds: round1(bedsS[i]),
             sqft: round1(sqftS[i]),
@@ -768,29 +853,34 @@
           : `<div class="chip"><span>Listing</span>URL needed</div>`;
 
         el.innerHTML = `
-          <div class="house-top">
+          <div class="house-summary">
             ${thumbHtml}
-            <div class="score-badge ${scoreClass(h.scores.final)}">${h.scores.final.toFixed(1)}</div>
-            <div>
-              <h2 class="addr">${escapeHtml(shortAddress(h.address))}</h2>
-              <p class="full-addr">${escapeHtml(h.address)}</p>
-              <p class="meta">
-                <span><strong>${h.beds}</strong> bed</span>
-                <span><strong>${h.baths}</strong> bath</span>
-                <span><strong>${sqftLabel}</strong></span>
-                <span>${h.basement ? "Basement" : "No basement"}</span>
-                ${h.notes ? `<span>${escapeHtml(h.notes)}</span>` : ""}
-              </p>
+            <div class="house-main">
+              <div class="house-top">
+                <div class="score-badge ${scoreClass(h.scores.final)}">${h.scores.final.toFixed(1)}</div>
+                <div>
+                  <h2 class="addr">${escapeHtml(shortAddress(h.address))}</h2>
+                  <p class="full-addr">${escapeHtml(h.address)}</p>
+                  <p class="meta">
+                    <span><strong>${h.beds}</strong> bed</span>
+                    <span><strong>${h.baths}</strong> bath</span>
+                    <span><strong>${sqftLabel}</strong></span>
+                    <span>${typeLabel(h.type)}</span>
+                    <span>${basementLabel(h.basement)}</span>
+                    ${h.notes ? `<span>${escapeHtml(h.notes)}</span>` : ""}
+                  </p>
+                </div>
+                <div class="price">${formatMoney(h.price)}</div>
+              </div>
+              <div class="chips">
+                ${listingChip}
+                <div class="chip"><span>School</span>${formatMins(h.school)}</div>
+                <div class="chip"><span>MSB</span>${formatMins(h.msb)}</div>
+                <div class="chip"><span>School/Work</span>${formatMins(h.schoolWork)}</div>
+                <div class="chip"><span>Girls</span>${formatMins(h.girls)}</div>
+                <div class="chip"><span>Work</span>${formatMins(h.work)}</div>
+              </div>
             </div>
-            <div class="price">${formatMoney(h.price)}</div>
-          </div>
-          <div class="chips">
-            ${listingChip}
-            <div class="chip"><span>School</span>${formatMins(h.school)}</div>
-            <div class="chip"><span>MSB</span>${formatMins(h.msb)}</div>
-            <div class="chip"><span>School/Work</span>${formatMins(h.schoolWork)}</div>
-            <div class="chip"><span>Girls</span>${formatMins(h.girls)}</div>
-            <div class="chip"><span>Work</span>${formatMins(h.work)}</div>
           </div>
           <div class="details">
             ${photo ? `<img class="hero-photo" src="${escapeHtml(photo)}" alt="" />` : ""}
@@ -809,6 +899,7 @@
               ${factorBar("Location", h.scores.location)}
               ${factorBar("Price", h.scores.price)}
               ${factorBar("Basement", h.scores.basement)}
+              ${factorBar("Type", h.scores.type)}
               ${factorBar("Baths", h.scores.baths)}
               ${factorBar("Beds", h.scores.beds)}
               ${factorBar("Sq Ft", h.scores.sqft)}

@@ -94,7 +94,29 @@ function parseNumber(text) {
   return Number.isFinite(n) ? n : null;
 }
 
-function fetchText(url, redirects = 0) {
+function normalizeBasement(raw) {
+  const s = String(raw || "").trim().toLowerCase();
+  if (!s) return "unknown";
+  if (/^(yes|y|finished|fin)$/.test(s)) return "finished";
+  if (/^(unfinished|unfin)$/.test(s)) return "unfinished";
+  if (/^(unknown|unk|\?)$/.test(s)) return "unknown";
+  if (/^(no|n|none|0)$/.test(s)) return "none";
+  return "unknown";
+}
+
+function normalizeType(raw) {
+  const s = String(raw || "").trim().toLowerCase();
+  if (!s) return "unknown";
+  if (/single[\s-]?family|sfh|^sf$|house|detached/.test(s)) return "single-family";
+  if (/town\s*-?\s*home|townhouse|^th$|row\s*home/.test(s)) return "townhome";
+  return "unknown";
+}
+
+function fetchText(url, redirects = 0, userAgent = null) {
+  const ua =
+    userAgent ||
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
+
   return new Promise((resolve, reject) => {
     if (redirects > 5) return reject(new Error("too many redirects"));
     const lib = url.startsWith("https") ? https : http;
@@ -102,10 +124,12 @@ function fetchText(url, redirects = 0) {
       url,
       {
         headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-          Accept: "text/html,application/xhtml+xml",
+          "User-Agent": ua,
+          Accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
           "Accept-Language": "en-US,en;q=0.9",
+          "Cache-Control": "no-cache",
+          Referer: "https://www.google.com/",
         },
         timeout: 25000,
       },
@@ -117,7 +141,7 @@ function fetchText(url, redirects = 0) {
         ) {
           const next = new URL(res.headers.location, url).toString();
           res.resume();
-          return fetchText(next, redirects + 1).then(resolve, reject);
+          return fetchText(next, redirects + 1, ua).then(resolve, reject);
         }
         const chunks = [];
         res.on("data", (c) => chunks.push(c));
@@ -136,6 +160,40 @@ function fetchText(url, redirects = 0) {
       reject(new Error("timeout"));
     });
   });
+}
+
+const PAGE_USER_AGENTS = [
+  // Zillow allows mobile Safari; desktop Chrome often 403s
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+  "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+];
+
+async function fetchListingHtml(listingUrl) {
+  // Strip tracking params — cleaner URLs scrape more reliably
+  let url = listingUrl;
+  try {
+    const u = new URL(listingUrl);
+    u.search = "";
+    u.hash = "";
+    url = u.toString();
+  } catch {
+    /* keep original */
+  }
+
+  let last = null;
+  for (const ua of PAGE_USER_AGENTS) {
+    const res = await fetchText(url, 0, ua);
+    last = res;
+    if (res.status === 200 && /og:image|twitter:image|thumbnailUrl/i.test(res.body)) {
+      return res;
+    }
+    if (res.status === 200 && res.body.length > 50000) {
+      return res; // usable page even if meta pattern differs
+    }
+    console.log(`    UA retry after HTTP ${res.status} (${ua.slice(0, 28)}…)`);
+  }
+  return last;
 }
 
 function decodeHtml(s) {
@@ -186,7 +244,7 @@ function slugify(address) {
     .slice(0, 60);
 }
 
-function downloadImage(url, destPath) {
+function downloadImage(url, destPath, referer) {
   return new Promise((resolve, reject) => {
     const lib = url.startsWith("https") ? https : http;
     const req = lib.get(
@@ -194,9 +252,9 @@ function downloadImage(url, destPath) {
       {
         headers: {
           "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
           Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-          Referer: url,
+          Referer: referer || "https://www.zillow.com/",
         },
         timeout: 30000,
       },
@@ -208,7 +266,7 @@ function downloadImage(url, destPath) {
         ) {
           const next = new URL(res.headers.location, url).toString();
           res.resume();
-          return downloadImage(next, destPath).then(resolve, reject);
+          return downloadImage(next, destPath, referer).then(resolve, reject);
         }
         if (res.statusCode !== 200) {
           res.resume();
@@ -230,7 +288,7 @@ function downloadImage(url, destPath) {
   });
 }
 
-function extFromUrl(url, contentHint) {
+function extFromUrl(url) {
   const m = url.match(/\.(jpe?g|png|webp|gif)(?:\?|$)/i);
   if (m) return "." + m[1].toLowerCase().replace("jpeg", "jpg");
   return ".jpg";
@@ -240,7 +298,7 @@ async function scrapeListingImage(listingUrl, address) {
   if (!listingUrl || !/^https?:\/\//i.test(listingUrl)) return null;
   console.log("  scraping", listingUrl);
   try {
-    const { status, body, finalUrl } = await fetchText(listingUrl);
+    const { status, body, finalUrl } = await fetchListingHtml(listingUrl);
     if (status !== 200) {
       console.log("    page HTTP", status);
       return null;
@@ -250,14 +308,17 @@ async function scrapeListingImage(listingUrl, address) {
       console.log("    no og/schema image found");
       return null;
     }
-    console.log("    image", imageUrl.slice(0, 90) + (imageUrl.length > 90 ? "…" : ""));
+    console.log(
+      "    image",
+      imageUrl.slice(0, 90) + (imageUrl.length > 90 ? "…" : "")
+    );
 
     if (!fs.existsSync(IMG_DIR)) fs.mkdirSync(IMG_DIR, { recursive: true });
     const ext = extFromUrl(imageUrl);
     const localName = slugify(address) + ext;
     const localPath = path.join(IMG_DIR, localName);
     try {
-      await downloadImage(imageUrl, localPath);
+      await downloadImage(imageUrl, localPath, listingUrl);
       console.log("    saved", localName);
       return { imageUrl, imageLocal: "images/" + localName };
     } catch (e) {
@@ -298,7 +359,8 @@ async function main() {
       schoolWork: parseMinutes(row[col("School/Work Commute")]),
       totalDrive: parseMinutes(row[col("Total Drive Time")]),
       parking: row[col("Parking")] || "",
-      basement: /^yes$/i.test(String(row[col("Includes Basement")] || "").trim()),
+      basement: normalizeBasement(row[col("Includes Basement")]),
+      type: normalizeType(row[col("Type")]),
       contact: row[col("Contact")] || "",
       notes: row[col("Notes")] || "",
       compositeScore: parseNumber(row[col("Composite Score")]),
@@ -310,6 +372,7 @@ async function main() {
         item.imageUrl = img.imageUrl;
         item.imageLocal = img.imageLocal;
       }
+      await new Promise((r) => setTimeout(r, 600));
     } else {
       console.log("skip (no URL):", address.split(",")[0]);
     }

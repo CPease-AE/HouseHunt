@@ -1,13 +1,38 @@
 /**
- * Fetch current Google Maps drive times and rewrite CSV so each Maps URL cell
- * is an Excel HYPERLINK with the commute time as the visible link text.
+ * Fetch Google Maps drive times for houses in Property Listings Overview.
+ *
+ * Reads each Address, fills Girls / School / Work / MSB / School/Work Commute /
+ * Total Drive Time, then writes back to the CSV.
+ *
+ * Usage:
+ *   node fetch_times.js          # only rows missing commute times
+ *   node fetch_times.js --all    # refresh every house
  */
 const fs = require("fs");
 const path = require("path");
 const https = require("https");
 const http = require("http");
 
-const CSV_PATH = path.join(__dirname, "House,Destination.csv");
+const CSV_PATH = path.join(
+  __dirname,
+  "Property Listings Overview - Cameron - Short List.csv"
+);
+
+const DESTINATIONS = {
+  Girls: "112 Old Barrington Rd, North Barrington, IL 60010",
+  School: "40 E Dundee Rd, Barrington, IL 60010",
+  Work: "2600 South River Rd, Des Plaines, IL",
+  MSB: "39 E Main St, Carpentersville, IL 60110",
+};
+
+const COMMUTE_COLS = [
+  "Girls",
+  "School",
+  "Work",
+  "MSB",
+  "School/Work Commute",
+  "Total Drive Time",
+];
 
 function fetchText(url) {
   return new Promise((resolve, reject) => {
@@ -51,15 +76,6 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function parseOriginDest(url) {
-  const m = url.match(/\/maps\/dir\/([^/]+)\/([^/?#]+)/);
-  if (!m) return null;
-  return {
-    origin: decodeURIComponent(m[1].replace(/\+/g, " ")),
-    dest: decodeURIComponent(m[2].replace(/\+/g, " ")),
-  };
-}
-
 function encodeAddr(s) {
   return encodeURIComponent(s).replace(/%20/g, "+");
 }
@@ -74,11 +90,7 @@ function previewUrl(origin, dest) {
   );
 }
 
-/**
- * Prefer current traffic duration from Google's directions payload.
- * Falls back to primary route summary duration text.
- */
-function extractDriveLabel(body) {
+function extractDrive(body) {
   const traffic = body.match(
     /\[\[(\d+),"([^"]+)"\],null,\d+,\[(\d+),"([^"]+)"\],\[(\d+),(\d+),"([^"]+)"\]/
   );
@@ -86,63 +98,88 @@ function extractDriveLabel(body) {
     return {
       label: traffic[2],
       seconds: parseInt(traffic[1], 10),
-      typical: traffic[4],
-      range: traffic[7],
     };
   }
-
-  const summary = body.match(/\[[\d.]+,"[\d.]+ miles?",1?\],\[(\d+),"([^"]+)"\]/i);
+  const summary = body.match(
+    /\[[\d.]+,"[\d.]+ miles?",1?\],\[(\d+),"([^"]+)"\]/i
+  );
   if (summary) {
     return {
       label: summary[2],
       seconds: parseInt(summary[1], 10),
     };
   }
-
-  // Last resort: first reasonable "N min" / "N hr M min"
-  const hrMin = body.match(/(\d+)\s*hr(?:s)?\s*(\d+)\s*min/i);
-  if (hrMin) return { label: `${hrMin[1]} hr ${hrMin[2]} min` };
-
-  const mins = [...body.matchAll(/\b(\d{1,3})\s*mins?\b/gi)]
-    .map((m) => parseInt(m[1], 10))
-    .filter((n) => n >= 3 && n <= 240);
-  if (mins.length) return { label: `${mins[0]} min` };
-
   return null;
 }
 
-async function getDriveLabel(url, cache) {
-  if (cache.has(url)) return cache.get(url);
+function parseMinutes(text) {
+  if (!text) return null;
+  const s = String(text);
+  const fromLink = s.match(/","([^"]+)"\)/);
+  const label = fromLink ? fromLink[1] : s;
+  const hr = label.match(/(\d+)\s*hr(?:s)?(?:\s*(\d+)\s*min)?/i);
+  if (hr) return parseInt(hr[1], 10) * 60 + parseInt(hr[2] || "0", 10);
+  const min = label.match(/(\d+)\s*min/i);
+  return min ? parseInt(min[1], 10) : null;
+}
 
-  const pair = parseOriginDest(url);
-  if (!pair) {
-    cache.set(url, null);
-    return null;
+function formatMinutes(n) {
+  if (n == null || !Number.isFinite(n)) return "";
+  const minutes = Math.max(1, Math.round(n));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (mins === 0) return `${hours} hr`;
+  return `${hours} hr ${mins} min`;
+}
+
+function cleanAddress(addr) {
+  return String(addr || "")
+    .replace(/[\u00a0\u200b\ufffd]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Build a Maps-friendly origin from a listing address. */
+function originForMaps(address) {
+  let a = cleanAddress(address);
+  // Drop unit markers like "# 742" / "# 0"
+  a = a.replace(/#\s*\S+/g, " ").replace(/\s+/g, " ").trim();
+  if (!/,\s*IL\b/i.test(a) && !/\bIllinois\b/i.test(a)) {
+    // keep as-is; many already include city
   }
+  return a;
+}
 
-  console.log(`Fetching: ${pair.origin} -> ${pair.dest}`);
-  let label = null;
+async function fetchDrive(origin, dest, cache) {
+  const key = `${origin}||${dest}`;
+  if (cache.has(key)) return cache.get(key);
+
+  console.log(`  ${origin} -> ${dest}`);
+  let result = null;
   try {
-    const { status, body } = await fetchText(previewUrl(pair.origin, pair.dest));
+    const { status, body } = await fetchText(previewUrl(origin, dest));
     if (status !== 200) {
-      console.log(`  HTTP ${status}`);
+      console.log(`    HTTP ${status}`);
     } else {
-      const parsed = extractDriveLabel(body);
+      const parsed = extractDrive(body);
       if (parsed) {
-        label = parsed.label;
-        const extra = parsed.range ? ` (typical ${parsed.typical}, range ${parsed.range})` : "";
-        console.log(`  -> ${label}${extra}`);
+        result = {
+          label: parsed.label,
+          minutes: Math.round(parsed.seconds / 60),
+        };
+        console.log(`    -> ${result.label}`);
       } else {
-        console.log("  -> could not parse duration");
+        console.log("    -> could not parse duration");
       }
     }
   } catch (e) {
-    console.log(`  err: ${e.message}`);
+    console.log(`    err: ${e.message}`);
   }
 
-  cache.set(url, label);
+  cache.set(key, result);
   await sleep(350);
-  return label;
+  return result;
 }
 
 function parseCsv(text) {
@@ -172,9 +209,7 @@ function parseCsv(text) {
       rows.push(row);
       row = [];
       field = "";
-    } else if (c === "\r") {
-      // skip
-    } else {
+    } else if (c !== "\r") {
       field += c;
     }
   }
@@ -186,66 +221,132 @@ function parseCsv(text) {
 }
 
 function toCsv(rows) {
-  return rows
-    .map((row) =>
-      row
-        .map((cell) => {
-          const s = String(cell ?? "");
-          if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-          return s;
-        })
-        .join(",")
-    )
-    .join("\r\n");
+  return (
+    rows
+      .map((row) =>
+        row
+          .map((cell) => {
+            const s = String(cell ?? "");
+            if (/[",\n\r]/.test(s) || s.startsWith("="))
+              return `"${s.replace(/"/g, '""')}"`;
+            return s;
+          })
+          .join(",")
+      )
+      .join("\r\n") + "\r\n"
+  );
 }
 
-function extractUrl(cell) {
-  const s = (cell || "").trim();
-  if (!s) return "";
-  const m = s.match(/HYPERLINK\("([^"]+)"/i);
-  if (m) return m[1];
-  if (s.startsWith("http")) return s;
-  return "";
+function parseHeader(raw) {
+  const s = String(raw || "").trim();
+  const m = s.match(/^(.*?)\s*\((\d+(?:\.\d+)?)\s*%\)\s*$/i);
+  if (m) return { base: m[1].trim(), weightPct: parseFloat(m[2]) };
+  return { base: s, weightPct: null };
 }
 
-function makeHyperlink(url, text) {
-  return `=HYPERLINK("${url.replace(/"/g, '""')}","${text.replace(/"/g, '""')}")`;
+function findCol(header, baseName) {
+  const target = baseName.toLowerCase();
+  for (let i = 0; i < header.length; i++) {
+    if (parseHeader(header[i]).base.toLowerCase() === target) return i;
+  }
+  return -1;
+}
+
+function needsCommute(row, idxs) {
+  return COMMUTE_COLS.some((name) => {
+    const i = idxs[name];
+    if (i < 0) return true;
+    return !String(row[i] || "").trim();
+  });
 }
 
 async function main() {
-  const raw = fs.readFileSync(CSV_PATH, "utf8");
-  const rows = parseCsv(raw);
+  const refreshAll = process.argv.includes("--all");
+  const rows = parseCsv(fs.readFileSync(CSV_PATH, "utf8"));
   if (!rows.length) throw new Error("empty csv");
 
   const header = rows[0];
-  const urlCols = header
-    .map((name, i) => (/URL|MAPS/i.test(name) ? i : -1))
-    .filter((i) => i >= 0);
-  console.log("URL columns:", urlCols.map((i) => header[i]).join(", "));
+  const addressIdx = findCol(header, "Address");
+  if (addressIdx < 0) throw new Error("Address column not found");
 
-  const cache = new Map();
-  const out = [header];
-
-  for (let r = 1; r < rows.length; r++) {
-    const row = rows[r].slice();
-    while (row.length < header.length) row.push("");
-    if (!row.some((c) => String(c).trim())) {
-      out.push(row.slice(0, header.length));
-      continue;
-    }
-    const newRow = row.slice(0, header.length);
-    for (const i of urlCols) {
-      const url = extractUrl(newRow[i]);
-      if (!url) continue;
-      const label = (await getDriveLabel(url, cache)) || "time N/A";
-      newRow[i] = makeHyperlink(url, label);
-    }
-    out.push(newRow);
+  const idxs = {};
+  for (const name of COMMUTE_COLS) {
+    idxs[name] = findCol(header, name);
+    if (idxs[name] < 0) throw new Error(`Missing column: ${name}`);
   }
 
-  fs.writeFileSync(CSV_PATH, toCsv(out) + "\r\n", "utf8");
+  const cache = new Map();
+  let updated = 0;
+  let skipped = 0;
+
+  // Shared School -> Work leg
+  let schoolToWork = null;
+
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    while (row.length < header.length) row.push("");
+    if (!row.some((c) => String(c || "").trim())) continue;
+
+    const address = cleanAddress(row[addressIdx]);
+    if (!address) continue;
+
+    if (!refreshAll && !needsCommute(row, idxs)) {
+      skipped++;
+      continue;
+    }
+
+    console.log(`\nHouse: ${address}`);
+    const origin = originForMaps(address);
+
+    const girls = await fetchDrive(origin, DESTINATIONS.Girls, cache);
+    const school = await fetchDrive(origin, DESTINATIONS.School, cache);
+    const work = await fetchDrive(origin, DESTINATIONS.Work, cache);
+    const msb = await fetchDrive(origin, DESTINATIONS.MSB, cache);
+
+    if (!schoolToWork) {
+      schoolToWork = await fetchDrive(
+        DESTINATIONS.School,
+        DESTINATIONS.Work,
+        cache
+      );
+    }
+
+    const girlsMin = girls?.minutes ?? parseMinutes(girls?.label);
+    const schoolMin = school?.minutes ?? parseMinutes(school?.label);
+    const workMin = work?.minutes ?? parseMinutes(work?.label);
+    const msbMin = msb?.minutes ?? parseMinutes(msb?.label);
+    const leg2Min =
+      schoolToWork?.minutes ?? parseMinutes(schoolToWork?.label) ?? 0;
+
+    const schoolWorkMin =
+      (schoolMin != null ? schoolMin : 0) + (leg2Min || 0);
+    const totalMin =
+      (girlsMin || 0) +
+      (schoolMin || 0) +
+      (workMin || 0) +
+      (msbMin || 0) +
+      schoolWorkMin;
+
+    row[idxs.Girls] = girls?.label || formatMinutes(girlsMin) || "";
+    row[idxs.School] = school?.label || formatMinutes(schoolMin) || "";
+    row[idxs.Work] = work?.label || formatMinutes(workMin) || "";
+    row[idxs.MSB] = msb?.label || formatMinutes(msbMin) || "";
+    row[idxs["School/Work Commute"]] = formatMinutes(schoolWorkMin);
+    row[idxs["Total Drive Time"]] = formatMinutes(totalMin);
+
+    // Clean address cell encoding glitches while we're here
+    row[addressIdx] = address;
+
+    console.log(
+      `  School/Work ${formatMinutes(schoolWorkMin)} | Total ${formatMinutes(totalMin)}`
+    );
+    updated++;
+  }
+
+  fs.writeFileSync(CSV_PATH, toCsv(rows), "utf8");
   console.log(`\nUpdated ${CSV_PATH}`);
-  console.log(`Unique routes: ${cache.size}`);
+  console.log(`Houses updated: ${updated} | skipped (already filled): ${skipped}`);
+  console.log("Next: node score_houses.js && node sync_listings.js");
 }
 
 main().catch((e) => {

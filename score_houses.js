@@ -6,7 +6,11 @@
  *
  * Location sub-weights live on: Girls, School, Work, MSB, School/Work Commute
  * Location's share of the final score lives on: Total Drive Time
- * Final factor weights live on: Price, Parking, Includes Basement, Baths, Sq Ft
+ * Final factor weights live on: Price, Parking, Includes Basement, Type, Baths, Beds, Sq Ft
+ *
+ * Basement values: finished (10), unfinished (7), unknown (2.5), none (0)
+ * Type values: Single Family | Townhome — scored with basement:
+ *   SF+basement=10, TH+basement=7, SF+none=5, TH+none=0
  */
 const fs = require("fs");
 const path = require("path");
@@ -30,6 +34,7 @@ const DEFAULTS = {
     Price: 35,
     Parking: 0,
     "Includes Basement": 15,
+    Type: 10,
     Baths: 7.5,
     Beds: 3.75,
     "Sq Ft": 3.75,
@@ -195,6 +200,77 @@ function garageSize(text) {
   return m ? parseFloat(m[1]) : null;
 }
 
+/** Normalize basement cell → finished | unfinished | unknown | none */
+function normalizeBasement(raw) {
+  const s = String(raw || "").trim().toLowerCase();
+  if (!s) return "unknown";
+  if (/^(yes|y|finished|fin)$/.test(s)) return "finished";
+  if (/^(unfinished|unfin)$/.test(s)) return "unfinished";
+  if (/^(unknown|unk|\?)$/.test(s)) return "unknown";
+  if (/^(no|n|none|0)$/.test(s)) return "none";
+  return "unknown";
+}
+
+function basementScore(kind) {
+  switch (kind) {
+    case "finished":
+      return 10;
+    case "unfinished":
+      return 7;
+    case "unknown":
+      return 2.5;
+    case "none":
+      return 0;
+    default:
+      return 2.5;
+  }
+}
+
+/** Normalize type cell → single-family | townhome | unknown */
+function normalizeType(raw) {
+  const s = String(raw || "").trim().toLowerCase();
+  if (!s) return "unknown";
+  if (/single[\s-]?family|sfh|^sf$|house|detached/.test(s)) return "single-family";
+  if (/town\s*-?\s*home|townhouse|^th$|row\s*home/.test(s)) return "townhome";
+  return "unknown";
+}
+
+/**
+ * Type × basement matrix:
+ * SF + basement 10 | TH + basement 7 | SF + none 5 | TH + none 0
+ * finished/unfinished count as basement; none = no basement; unknown = midpoint
+ */
+function typeScore(typeRaw, basementRaw) {
+  const type = normalizeType(typeRaw);
+  const basement = normalizeBasement(basementRaw);
+  const hasBasement = basement === "finished" || basement === "unfinished";
+  const noBasement = basement === "none";
+
+  const sfWith = 10;
+  const thWith = 7;
+  const sfNone = 5;
+  const thNone = 0;
+
+  function forType(t, withB) {
+    if (t === "single-family") return withB ? sfWith : sfNone;
+    if (t === "townhome") return withB ? thWith : thNone;
+    // unknown type → average SF/TH
+    return withB ? (sfWith + thWith) / 2 : (sfNone + thNone) / 2;
+  }
+
+  if (hasBasement) return forType(type, true);
+  if (noBasement) return forType(type, false);
+  // unknown basement → midpoint between with/without for that type
+  return (forType(type, true) + forType(type, false)) / 2;
+}
+
+function typeLabel(raw) {
+  const t = normalizeType(raw);
+  if (t === "single-family") return "Single Family";
+  if (t === "townhome") return "Townhome";
+  return "Type unknown";
+}
+
 function main() {
   const rows = parseCsv(fs.readFileSync(CSV_PATH, "utf8"));
   const header = rows[0];
@@ -223,6 +299,7 @@ function main() {
   const msbIdx = findCol(header, "MSB");
   const schoolWorkIdx = findCol(header, "School/Work Commute");
   const basementIdx = findCol(header, "Includes Basement");
+  const typeIdx = findCol(header, "Type");
   const parkingIdx = findCol(header, "Parking");
 
   // Location sub-weights (normalize to sum=1)
@@ -248,6 +325,7 @@ function main() {
     price: weightFor(header, "Price", DEFAULTS.final),
     parking: weightFor(header, "Parking", DEFAULTS.final),
     basement: weightFor(header, "Includes Basement", DEFAULTS.final),
+    type: weightFor(header, "Type", DEFAULTS.final),
     baths: weightFor(header, "Baths", DEFAULTS.final),
     beds: weightFor(header, "Beds", DEFAULTS.final),
     sqft: weightFor(header, "Sq Ft", DEFAULTS.final),
@@ -257,6 +335,7 @@ function main() {
     finalParts.price +
     finalParts.parking +
     finalParts.basement +
+    finalParts.type +
     finalParts.baths +
     finalParts.beds +
     finalParts.sqft;
@@ -288,10 +367,24 @@ function main() {
       work: parseMinutes(r[workIdx]),
       msb: parseMinutes(r[msbIdx]),
       schoolWork: parseMinutes(r[schoolWorkIdx]),
-      basement: /^yes$/i.test(String(r[basementIdx] || "").trim()),
+      basement: normalizeBasement(r[basementIdx]),
+      type: typeIdx >= 0 ? normalizeType(r[typeIdx]) : "unknown",
       garage: parkingIdx >= 0 ? garageSize(r[parkingIdx]) : null,
     };
   });
+
+  // Normalize basement / type labels in the CSV for clarity
+  for (const h of houses) {
+    h.row[basementIdx] = h.basement;
+    if (typeIdx >= 0 && String(h.row[typeIdx] || "").trim()) {
+      h.row[typeIdx] =
+        h.type === "single-family"
+          ? "Single Family"
+          : h.type === "townhome"
+            ? "Townhome"
+            : h.row[typeIdx];
+    }
+  }
 
   const knownSqft = houses.map((h) => h.sqft).filter((v) => v != null);
   const sqftMedian = knownSqft.length ? median(knownSqft) : 0;
@@ -308,7 +401,8 @@ function main() {
   const bedsS = scoreHigherBetter(houses.map((h) => h.beds));
   const bathsS = scoreHigherBetter(houses.map((h) => h.baths));
   const sqftS = scoreHigherBetter(houses.map((h) => h.sqftFilled));
-  const basementS = houses.map((h) => (h.basement ? 10 : 1));
+  const basementS = houses.map((h) => basementScore(h.basement));
+  const typeS = houses.map((h) => typeScore(h.type, h.basement));
   // Garage: higher car count better; if all null/equal, score 10
   const garageVals = houses.map((h) => h.garage);
   const garageS =
@@ -329,6 +423,7 @@ function main() {
       finalParts.price * priceS[i] +
       finalParts.parking * garageS[i] +
       finalParts.basement * basementS[i] +
+      finalParts.type * typeS[i] +
       finalParts.baths * bathsS[i] +
       finalParts.beds * bedsS[i] +
       finalParts.sqft * sqftS[i];
@@ -337,6 +432,7 @@ function main() {
       location: round1(location),
       price: round1(priceS[i]),
       basement: basementS[i],
+      type: round1(typeS[i]),
       baths: round1(bathsS[i]),
       beds: round1(bedsS[i]),
       sqft: round1(sqftS[i]),
