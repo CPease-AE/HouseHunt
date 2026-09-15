@@ -555,11 +555,11 @@
       : FALLBACK;
 
     const DEFAULT_FINAL = {
-      location: 30,
-      price: 30,
+      location: 35,
+      price: 35,
       parking: 0,
-      basement: 15,
-      type: 10,
+      basement: 10,
+      type: 5,
       baths: 7.5,
       beds: 3.75,
       sqft: 3.75,
@@ -569,7 +569,7 @@
       msb: 30,
       schoolWork: 25,
       girls: 7.5,
-      work: 7.5,
+      totalDrive: 7.5,
     };
 
     const FINAL_LABELS = {
@@ -587,7 +587,21 @@
       msb: "MSB",
       schoolWork: "School/Work",
       girls: "Girls",
-      work: "Work",
+      totalDrive: "Total drive",
+    };
+
+    /** Absolute score anchors (match score_houses.js) */
+    const SCALES = {
+      legBestMin: 15,
+      legWorstMin: 45,
+      schoolWorkBestMin: 35,
+      schoolWorkWorstMin: 70,
+      tdtBestMin: 90,
+      tdtWorstMin: 170,
+      priceBest: 1800,
+      priceWorst: 3800,
+      sqftLow: 1000,
+      sqftHigh: 2200,
     };
 
     let finalW = { ...DEFAULT_FINAL };
@@ -600,26 +614,57 @@
       return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
     }
 
-    function scoreLowerBetter(values) {
-      const known = values.filter((v) => v != null);
-      const min = Math.min(...known);
-      const max = Math.max(...known);
-      return values.map((v) => {
-        if (v == null) return null;
-        if (max === min) return 10;
-        return 10 - (9 * (v - min)) / (max - min);
-      });
+    function clampScore(n) {
+      if (n == null || !Number.isFinite(n)) return null;
+      return Math.max(1, Math.min(10, n));
     }
 
-    function scoreHigherBetter(values) {
-      const known = values.filter((v) => v != null);
-      const min = Math.min(...known);
-      const max = Math.max(...known);
-      return values.map((v) => {
-        if (v == null) return null;
-        if (max === min) return 10;
-        return 1 + (9 * (v - min)) / (max - min);
-      });
+    function scoreLowerAbsolute(value, best, worst) {
+      if (value == null || !Number.isFinite(value)) return null;
+      if (value <= best) return 10;
+      if (value >= worst) return 1;
+      return 10 - (9 * (value - best)) / (worst - best);
+    }
+
+    function scoreHigherAbsolute(value, low, high) {
+      if (value == null || !Number.isFinite(value)) return null;
+      if (value <= low) return 1;
+      if (value >= high) return 10;
+      return 1 + (9 * (value - low)) / (high - low);
+    }
+
+    function scorePrice(price) {
+      if (price == null || !Number.isFinite(price) || price <= 0) return null;
+      const lo = SCALES.priceBest;
+      const hi = SCALES.priceWorst;
+      const t = (Math.log(price) - Math.log(lo)) / (Math.log(hi) - Math.log(lo));
+      return clampScore(10 - 9 * t);
+    }
+
+    function scoreBeds(beds) {
+      if (beds == null) return null;
+      if (beds <= 1) return 1;
+      if (beds <= 2) return 4;
+      if (beds <= 3) return 7;
+      if (beds <= 4) return 9;
+      return 10;
+    }
+
+    function scoreBaths(baths) {
+      if (baths == null) return null;
+      if (baths <= 1) return 1;
+      if (baths <= 1.5) return 4;
+      if (baths <= 2) return 6.5;
+      if (baths <= 2.5) return 8.5;
+      return 10;
+    }
+
+    function scoreGarage(cars) {
+      if (cars == null) return 5;
+      if (cars <= 0) return 1;
+      if (cars <= 1) return 4;
+      if (cars <= 2) return 8;
+      return 10;
     }
 
     function round1(n) {
@@ -728,13 +773,12 @@
     }
 
     function scoreAll() {
-      const sqftMedian = median(RAW.map((h) => h.sqft).filter((v) => v != null));
+      const sqftMedian = median(RAW.map((h) => h.sqft).filter((v) => v != null)) || 1500;
       const houses = RAW.map((h, i) => {
         const girls = h.girls;
         const school = h.school;
         const work = h.work;
         const msb = h.msb;
-        // Total Drive Time = directs only (excludes School/Work)
         const totalDrive =
           h.totalDrive != null && h.totalDrive > 0
             ? h.totalDrive
@@ -748,41 +792,54 @@
         };
       });
 
-      const girlsS = scoreLowerBetter(houses.map((h) => h.girls));
-      const schoolS = scoreLowerBetter(houses.map((h) => h.school));
-      const workS = scoreLowerBetter(houses.map((h) => h.work));
-      const msbS = scoreLowerBetter(houses.map((h) => h.msb));
-      const schoolWorkS = scoreLowerBetter(houses.map((h) => h.schoolWork));
-      const priceS = scoreLowerBetter(houses.map((h) => h.price));
-      const bedsS = scoreHigherBetter(houses.map((h) => h.beds));
-      const bathsS = scoreHigherBetter(houses.map((h) => h.baths));
-      const sqftS = scoreHigherBetter(houses.map((h) => h.sqftFilled));
+      const girlsS = houses.map((h) =>
+        scoreLowerAbsolute(h.girls, SCALES.legBestMin, SCALES.legWorstMin)
+      );
+      const schoolS = houses.map((h) =>
+        scoreLowerAbsolute(h.school, SCALES.legBestMin, SCALES.legWorstMin)
+      );
+      const msbS = houses.map((h) =>
+        scoreLowerAbsolute(h.msb, SCALES.legBestMin, SCALES.legWorstMin)
+      );
+      const schoolWorkS = houses.map((h) =>
+        scoreLowerAbsolute(
+          h.schoolWork,
+          SCALES.schoolWorkBestMin,
+          SCALES.schoolWorkWorstMin
+        )
+      );
+      const totalDriveS = houses.map((h) =>
+        scoreLowerAbsolute(h.totalDrive, SCALES.tdtBestMin, SCALES.tdtWorstMin)
+      );
+      const priceS = houses.map((h) => scorePrice(h.price));
+      const bedsS = houses.map((h) => scoreBeds(h.beds));
+      const bathsS = houses.map((h) => scoreBaths(h.baths));
+      const sqftS = houses.map((h) =>
+        scoreHigherAbsolute(h.sqftFilled, SCALES.sqftLow, SCALES.sqftHigh)
+      );
       const basementS = houses.map((h) => basementScore(h.basement));
       const typeS = houses.map((h) => typeScore(h.type, h.basement));
-      const garageVals = houses.map((h) => h.garage);
-      const garageS = garageVals.every((v) => v == null)
-        ? houses.map(() => 10)
-        : scoreHigherBetter(garageVals.map((v) => (v == null ? 0 : v)));
+      const garageS = houses.map((h) => scoreGarage(h.garage));
 
       const locN = normalize(locW);
       const finN = normalize(finalW);
 
       return houses.map((h, i) => {
         const location =
-          locN.school * schoolS[i] +
-          locN.msb * msbS[i] +
-          locN.schoolWork * schoolWorkS[i] +
-          locN.girls * girlsS[i] +
-          locN.work * workS[i];
+          (locN.school || 0) * (schoolS[i] ?? 5) +
+          (locN.msb || 0) * (msbS[i] ?? 5) +
+          (locN.schoolWork || 0) * (schoolWorkS[i] ?? 5) +
+          (locN.girls || 0) * (girlsS[i] ?? 5) +
+          (locN.totalDrive || 0) * (totalDriveS[i] ?? 5);
         const final =
           finN.location * location +
-          finN.price * priceS[i] +
+          finN.price * (priceS[i] ?? 5) +
           finN.parking * garageS[i] +
           finN.basement * basementS[i] +
           (finN.type || 0) * typeS[i] +
-          finN.baths * bathsS[i] +
-          (finN.beds || 0) * bedsS[i] +
-          finN.sqft * sqftS[i];
+          finN.baths * (bathsS[i] ?? 5) +
+          (finN.beds || 0) * (bedsS[i] ?? 5) +
+          finN.sqft * (sqftS[i] ?? 5);
         return {
           ...h,
           scores: {

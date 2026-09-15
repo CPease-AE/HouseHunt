@@ -1,13 +1,14 @@
 /**
- * Sync CSV → listings-data.js for the HTML GUI.
- * Scrapes og:image / schema.org image from each Listing URL when present.
+ * Sync CSV → listings-data.js for the HTML GUI (no network).
+ * Always keeps previously fetched imageUrl / imageLocal (matched by
+ * address, listing URL, or existing file under images/).
  *
  * Usage: node sync_listings.js
+ *
+ * To scrape listing photos: node fetch_images.js
  */
 const fs = require("fs");
 const path = require("path");
-const https = require("https");
-const http = require("http");
 
 const ROOT = __dirname;
 const CSV_PATH = path.join(
@@ -112,130 +113,6 @@ function normalizeType(raw) {
   return "unknown";
 }
 
-function fetchText(url, redirects = 0, userAgent = null) {
-  const ua =
-    userAgent ||
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
-
-  return new Promise((resolve, reject) => {
-    if (redirects > 5) return reject(new Error("too many redirects"));
-    const lib = url.startsWith("https") ? https : http;
-    const req = lib.get(
-      url,
-      {
-        headers: {
-          "User-Agent": ua,
-          Accept:
-            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          "Accept-Language": "en-US,en;q=0.9",
-          "Cache-Control": "no-cache",
-          Referer: "https://www.google.com/",
-        },
-        timeout: 25000,
-      },
-      (res) => {
-        if (
-          res.statusCode >= 300 &&
-          res.statusCode < 400 &&
-          res.headers.location
-        ) {
-          const next = new URL(res.headers.location, url).toString();
-          res.resume();
-          return fetchText(next, redirects + 1, ua).then(resolve, reject);
-        }
-        const chunks = [];
-        res.on("data", (c) => chunks.push(c));
-        res.on("end", () =>
-          resolve({
-            status: res.statusCode,
-            body: Buffer.concat(chunks).toString("utf8"),
-            finalUrl: url,
-          })
-        );
-      }
-    );
-    req.on("error", reject);
-    req.on("timeout", () => {
-      req.destroy();
-      reject(new Error("timeout"));
-    });
-  });
-}
-
-const PAGE_USER_AGENTS = [
-  // Zillow allows mobile Safari; desktop Chrome often 403s
-  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-  "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36",
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-];
-
-async function fetchListingHtml(listingUrl) {
-  // Strip tracking params — cleaner URLs scrape more reliably
-  let url = listingUrl;
-  try {
-    const u = new URL(listingUrl);
-    u.search = "";
-    u.hash = "";
-    url = u.toString();
-  } catch {
-    /* keep original */
-  }
-
-  let last = null;
-  for (const ua of PAGE_USER_AGENTS) {
-    const res = await fetchText(url, 0, ua);
-    last = res;
-    if (res.status === 200 && /og:image|twitter:image|thumbnailUrl/i.test(res.body)) {
-      return res;
-    }
-    if (res.status === 200 && res.body.length > 50000) {
-      return res; // usable page even if meta pattern differs
-    }
-    console.log(`    UA retry after HTTP ${res.status} (${ua.slice(0, 28)}…)`);
-  }
-  return last;
-}
-
-function decodeHtml(s) {
-  return String(s)
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">");
-}
-
-function extractFeaturedImage(html, pageUrl) {
-  const patterns = [
-    /<meta[^>]+property=["']og:image:secure_url["'][^>]+content=["']([^"']+)["']/i,
-    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image:secure_url["']/i,
-    /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i,
-    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i,
-    /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i,
-    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i,
-    /"image"\s*:\s*"(https?:[^"]+)"/i,
-    /"image"\s*:\s*\[\s*"(https?:[^"]+)"/i,
-    /"thumbnailUrl"\s*:\s*"(https?:[^"]+)"/i,
-    /<link[^>]+rel=["']image_src["'][^>]+href=["']([^"']+)["']/i,
-  ];
-  for (const pat of patterns) {
-    const m = html.match(pat);
-    if (m && m[1]) {
-      let img = decodeHtml(m[1].trim());
-      if (img.startsWith("//")) img = "https:" + img;
-      if (img.startsWith("/")) {
-        try {
-          img = new URL(img, pageUrl).toString();
-        } catch {
-          /* ignore */
-        }
-      }
-      if (/^https?:\/\//i.test(img)) return img;
-    }
-  }
-  return null;
-}
-
 function slugify(address) {
   return String(address)
     .toLowerCase()
@@ -244,110 +121,162 @@ function slugify(address) {
     .slice(0, 60);
 }
 
-function downloadImage(url, destPath, referer) {
-  return new Promise((resolve, reject) => {
-    const lib = url.startsWith("https") ? https : http;
-    const req = lib.get(
-      url,
-      {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-          Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-          Referer: referer || "https://www.zillow.com/",
-        },
-        timeout: 30000,
-      },
-      (res) => {
-        if (
-          res.statusCode >= 300 &&
-          res.statusCode < 400 &&
-          res.headers.location
-        ) {
-          const next = new URL(res.headers.location, url).toString();
-          res.resume();
-          return downloadImage(next, destPath, referer).then(resolve, reject);
-        }
-        if (res.statusCode !== 200) {
-          res.resume();
-          return reject(new Error("HTTP " + res.statusCode));
-        }
-        const chunks = [];
-        res.on("data", (c) => chunks.push(c));
-        res.on("end", () => {
-          fs.writeFileSync(destPath, Buffer.concat(chunks));
-          resolve(destPath);
-        });
-      }
-    );
-    req.on("error", reject);
-    req.on("timeout", () => {
-      req.destroy();
-      reject(new Error("timeout"));
-    });
-  });
+/** Collapse address noise so "Dr." / "Drive" / extra commas still match */
+function normalizeAddressKey(address) {
+  return String(address || "")
+    .toLowerCase()
+    .replace(/[#.,]/g, " ")
+    .replace(
+      /\b(street|st|drive|dr|road|rd|lane|ln|avenue|ave|terrace|ter|trail|trl|circle|cir|court|ct|boulevard|blvd|parkway|pkwy)\b/g,
+      ""
+    )
+    .replace(/\b(il|illinois)\b/g, "")
+    .replace(/\b\d{5}(?:-\d{4})?\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function extFromUrl(url) {
-  const m = url.match(/\.(jpe?g|png|webp|gif)(?:\?|$)/i);
-  if (m) return "." + m[1].toLowerCase().replace("jpeg", "jpg");
-  return ".jpg";
-}
-
-async function scrapeListingImage(listingUrl, address) {
-  if (!listingUrl || !/^https?:\/\//i.test(listingUrl)) return null;
-  console.log("  scraping", listingUrl);
+function normalizeUrlKey(url) {
+  if (!url) return "";
   try {
-    const { status, body, finalUrl } = await fetchListingHtml(listingUrl);
-    if (status !== 200) {
-      console.log("    page HTTP", status);
-      return null;
-    }
-    const imageUrl = extractFeaturedImage(body, finalUrl || listingUrl);
-    if (!imageUrl) {
-      console.log("    no og/schema image found");
-      return null;
-    }
-    console.log(
-      "    image",
-      imageUrl.slice(0, 90) + (imageUrl.length > 90 ? "…" : "")
-    );
-
-    if (!fs.existsSync(IMG_DIR)) fs.mkdirSync(IMG_DIR, { recursive: true });
-    const ext = extFromUrl(imageUrl);
-    const localName = slugify(address) + ext;
-    const localPath = path.join(IMG_DIR, localName);
-    try {
-      await downloadImage(imageUrl, localPath, listingUrl);
-      console.log("    saved", localName);
-      return { imageUrl, imageLocal: "images/" + localName };
-    } catch (e) {
-      console.log("    download failed, using remote URL:", e.message);
-      return { imageUrl, imageLocal: null };
-    }
-  } catch (e) {
-    console.log("    scrape failed:", e.message);
-    return null;
+    const u = new URL(url);
+    u.search = "";
+    u.hash = "";
+    return u.toString().replace(/\/$/, "").toLowerCase();
+  } catch {
+    return String(url).trim().toLowerCase();
   }
 }
 
-async function main() {
+function loadExistingListings() {
+  if (!fs.existsSync(OUT_JS)) return [];
+  const text = fs.readFileSync(OUT_JS, "utf8");
+  const start = text.indexOf("[");
+  const end = text.lastIndexOf("]");
+  if (start < 0 || end < start) return [];
+  try {
+    const list = JSON.parse(text.slice(start, end + 1));
+    return Array.isArray(list) ? list : [];
+  } catch (e) {
+    console.warn(
+      "Warning: could not parse existing listings-data.js:",
+      e.message
+    );
+    return [];
+  }
+}
+
+/**
+ * Build lookup indexes so photos survive address wording changes.
+ * Keys: exact address, normalized address, listing URL, image slug.
+ */
+function buildImageIndex(existing) {
+  const byAddress = new Map();
+  const byNormAddress = new Map();
+  const byUrl = new Map();
+  const bySlug = new Map();
+
+  function remember(key, map, photos) {
+    if (!key || map.has(key)) return;
+    if (!photos.imageUrl && !photos.imageLocal) return;
+    map.set(key, photos);
+  }
+
+  for (const item of existing) {
+    if (!item) continue;
+    const photos = {
+      imageUrl: item.imageUrl || null,
+      imageLocal: item.imageLocal || null,
+    };
+    if (!photos.imageUrl && !photos.imageLocal) continue;
+
+    remember(item.address, byAddress, photos);
+    remember(normalizeAddressKey(item.address), byNormAddress, photos);
+    remember(normalizeUrlKey(item.listingUrl), byUrl, photos);
+    remember(slugify(item.address), bySlug, photos);
+    if (photos.imageLocal) {
+      const base = path.basename(
+        photos.imageLocal,
+        path.extname(photos.imageLocal)
+      );
+      remember(base, bySlug, photos);
+    }
+  }
+
+  return { byAddress, byNormAddress, byUrl, bySlug };
+}
+
+/** If a matching file already lives in images/, reuse it */
+function findLocalImageFile(address) {
+  if (!fs.existsSync(IMG_DIR)) return null;
+  const slug = slugify(address);
+  if (!slug) return null;
+  const files = fs.readdirSync(IMG_DIR);
+  const hit = files.find((f) => {
+    const base = f.replace(/\.[^.]+$/, "");
+    return base === slug || base.startsWith(slug) || slug.startsWith(base);
+  });
+  return hit ? "images/" + hit : null;
+}
+
+function resolvePhotos(address, listingUrl, index) {
+  const candidates = [
+    index.byAddress.get(address),
+    index.byNormAddress.get(normalizeAddressKey(address)),
+    index.byUrl.get(normalizeUrlKey(listingUrl)),
+    index.bySlug.get(slugify(address)),
+  ].filter(Boolean);
+
+  let imageUrl = null;
+  let imageLocal = null;
+  for (const c of candidates) {
+    if (!imageUrl && c.imageUrl) imageUrl = c.imageUrl;
+    if (!imageLocal && c.imageLocal) imageLocal = c.imageLocal;
+  }
+
+  if (imageLocal) {
+    const abs = path.join(ROOT, imageLocal);
+    if (!fs.existsSync(abs)) {
+      // Stale path — keep remote URL, try rediscover local file
+      imageLocal = null;
+    }
+  }
+
+  if (!imageLocal) {
+    const discovered = findLocalImageFile(address);
+    if (discovered) imageLocal = discovered;
+  }
+
+  return { imageUrl, imageLocal };
+}
+
+function main() {
   const rows = parseCsv(fs.readFileSync(CSV_PATH, "utf8"));
   const header = rows[0];
   const col = (name) => findCol(header, name);
+  const existing = loadExistingListings();
+  const index = buildImageIndex(existing);
 
   const listings = [];
+  let preserved = 0;
+  let missing = 0;
+
   for (const row of rows.slice(1)) {
     if (!row.some((c) => String(c || "").trim())) continue;
     while (row.length < header.length) row.push("");
 
     const address = row[col("Address")] || "";
     const listingUrl = (row[col("Listing URL")] || "").trim();
-    const item = {
+    const photos = resolvePhotos(address, listingUrl, index);
+
+    if (photos.imageUrl || photos.imageLocal) preserved++;
+    else missing++;
+
+    listings.push({
       address,
       listingUrl,
-      imageUrl: null,
-      imageLocal: null,
+      imageUrl: photos.imageUrl,
+      imageLocal: photos.imageLocal,
       price: parsePrice(row[col("Price")]),
       beds: parseNumber(row[col("Beds")]),
       baths: parseNumber(row[col("Baths")]),
@@ -358,7 +287,6 @@ async function main() {
       msb: parseMinutes(row[col("MSB")]),
       schoolWork: parseMinutes(row[col("School/Work Commute")]),
       totalDrive: (() => {
-        // Prefer stored Total Drive Time; else sum directs excluding School/Work
         const stored = parseMinutes(row[col("Total Drive Time")]);
         if (stored != null) return stored;
         const g = parseMinutes(row[col("Girls")]) || 0;
@@ -374,33 +302,19 @@ async function main() {
       contact: row[col("Contact")] || "",
       notes: row[col("Notes")] || "",
       compositeScore: parseNumber(row[col("Composite Score")]),
-    };
-
-    if (listingUrl) {
-      const img = await scrapeListingImage(listingUrl, address);
-      if (img) {
-        item.imageUrl = img.imageUrl;
-        item.imageLocal = img.imageLocal;
-      }
-      await new Promise((r) => setTimeout(r, 600));
-    } else {
-      console.log("skip (no URL):", address.split(",")[0]);
-    }
-    listings.push(item);
+    });
   }
 
   const payload =
-    "window.LISTINGS_DATA = " +
-    JSON.stringify(listings, null, 2) +
-    ";\n";
+    "window.LISTINGS_DATA = " + JSON.stringify(listings, null, 2) + ";\n";
   fs.writeFileSync(OUT_JS, payload, "utf8");
-  console.log("\nWrote", OUT_JS, "(" + listings.length + " listings)");
+
+  console.log("Wrote", OUT_JS, "(" + listings.length + " listings)");
   console.log(
-    "Fill Listing URL in the CSV, then re-run: node sync_listings.js"
+    "Photos preserved:",
+    preserved + "/" + listings.length +
+      (missing ? ` (${missing} need node fetch_images.js)` : "")
   );
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+main();

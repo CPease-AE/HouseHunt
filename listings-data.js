@@ -14,13 +14,13 @@ window.LISTINGS_DATA = [
     "msb": 19,
     "schoolWork": 52,
     "totalDrive": 99,
-    "locationScore": 5.7,
+    "locationScore": 7.8,
     "parking": "2 car garage",
     "basement": "finished",
     "type": "townhome",
     "contact": "Real Property Management Chicago Group",
     "notes": "",
-    "compositeScore": 7.5
+    "compositeScore": 7.8
   },
   {
     "address": "2308 Dawson Ln, Algonquin, IL 60102",
@@ -37,13 +37,13 @@ window.LISTINGS_DATA = [
     "msb": 13,
     "schoolWork": 54,
     "totalDrive": 103,
-    "locationScore": 5.5,
+    "locationScore": 7.5,
     "parking": "2 car garage",
     "basement": "finished",
     "type": "townhome",
     "contact": "Real Property Management Northwest Chicago Suburbs",
     "notes": "",
-    "compositeScore": 7.2
+    "compositeScore": 7.6
   },
   {
     "address": "742 Pointe Dr, # 742, Crystal Lake, IL 60014",
@@ -60,13 +60,13 @@ window.LISTINGS_DATA = [
     "msb": 16,
     "schoolWork": 57,
     "totalDrive": 109,
-    "locationScore": 4.3,
+    "locationScore": 7.1,
     "parking": "2 car garage",
     "basement": "none",
     "type": "townhome",
     "contact": "DINESH AGARWAL (224) 288-0882",
     "notes": "Agent Owned",
-    "compositeScore": 5.2
+    "compositeScore": 6.2
   },
   {
     "address": "3829 Eastway Dr. Island Lake",
@@ -83,13 +83,13 @@ window.LISTINGS_DATA = [
     "msb": 28,
     "schoolWork": 56,
     "totalDrive": 117,
-    "locationScore": 3.5,
+    "locationScore": 6.2,
     "parking": "2.5 car garage",
     "basement": "unfinished",
     "type": "single-family",
     "contact": "",
     "notes": "",
-    "compositeScore": 6.3
+    "compositeScore": 6.8
   },
   {
     "address": "1441 Meadowsedge Ln, Carpentersville, IL 60110",
@@ -106,13 +106,13 @@ window.LISTINGS_DATA = [
     "msb": 9,
     "schoolWork": 54,
     "totalDrive": 97,
-    "locationScore": 6,
+    "locationScore": 7.5,
     "parking": "2 car garage",
     "basement": "finished",
     "type": "townhome",
     "contact": "American Homes 4 Rent (224) 243-3416",
     "notes": "",
-    "compositeScore": 5.8
+    "compositeScore": 6.9
   },
   {
     "address": "515 Eichler Dr West Dundee, IL 60118",
@@ -129,13 +129,13 @@ window.LISTINGS_DATA = [
     "msb": 4,
     "schoolWork": 48,
     "totalDrive": 79,
-    "locationScore": 8.5,
+    "locationScore": 8.6,
     "parking": "2 car garage",
     "basement": "unknown",
     "type": "townhome",
     "contact": "",
     "notes": "",
-    "compositeScore": 5.2
+    "compositeScore": 6.4
   },
   {
     "address": "195 Tollview Ter, Gilberts, IL",
@@ -152,13 +152,13 @@ window.LISTINGS_DATA = [
     "msb": 12,
     "schoolWork": 57,
     "totalDrive": 107,
-    "locationScore": 4.7,
+    "locationScore": 6.9,
     "parking": "2 car garage",
     "basement": "unknown",
     "type": "single-family",
     "contact": "Frank Lamco (815) 893-9264",
     "notes": "Pool",
-    "compositeScore": 5.3
+    "compositeScore": 6.2
   },
   {
     "address": "45 Golfview Rd, Lake Zurich, IL 60047",
@@ -175,13 +175,13 @@ window.LISTINGS_DATA = [
     "msb": 32,
     "schoolWork": 45,
     "totalDrive": 93,
-    "locationScore": 7,
+    "locationScore": 7.7,
     "parking": "2 car garage",
     "basement": "none",
     "type": "single-family",
     "contact": "Anastasiia Chornii (773) 985-8499",
     "notes": "",
-    "compositeScore": 3.9
+    "compositeScore": 5.6
   },
   {
     "address": "506 Barrett Street, Elgin",
@@ -198,13 +198,13 @@ window.LISTINGS_DATA = [
     "msb": 18,
     "schoolWork": 54,
     "totalDrive": 107,
-    "locationScore": 5.1,
+    "locationScore": 7.1,
     "parking": "2 car garage",
     "basement": "unfinished",
     "type": "single-family",
     "contact": "",
     "notes": "",
-    "compositeScore": 4.9
+    "compositeScore": 6.3
   },
   {
     "address": "3211 S Ronan Dr # 0, Lake in the Hills, IL 60156",
@@ -221,13 +221,13 @@ window.LISTINGS_DATA = [
     "msb": 20,
     "schoolWork": 61,
     "totalDrive": 126,
-    "locationScore": 2.4,
+    "locationScore": 5.8,
     "parking": "2 car garage",
     "basement": "none",
     "type": "townhome",
     "contact": "Listing id 12749810",
     "notes": "",
-    "compositeScore": 2.5
+    "compositeScore": 5.2
   },
   {
     "address": "6318 W Rawson Bridge Rd, Cary, IL 60013",
@@ -244,13 +244,13 @@ window.LISTINGS_DATA = [
     "msb": 21,
     "schoolWork": 54,
     "totalDrive": 112,
-    "locationScore": 4.5,
+    "locationScore": 7,
     "parking": "2 car garage",
     "basement": "unknown",
     "type": "single-family",
     "contact": "Jack Domanski - Brokerocity",
     "notes": "Pond",
-    "compositeScore": 3.9
+    "compositeScore": 6.3
   },
   {
     "address": "653 Cress Creek Ln, Crystal Lake, IL 60014",
@@ -267,13 +267,13 @@ window.LISTINGS_DATA = [
     "msb": 20,
     "schoolWork": 58,
     "totalDrive": 123,
-    "locationScore": 3.2,
+    "locationScore": 6.2,
     "parking": "2 car garage",
     "basement": "finished",
     "type": "townhome",
     "contact": "",
     "notes": "",
-    "compositeScore": 5.3
+    "compositeScore": 7
   },
   {
     "address": "563 Littleton Trl, Elgin, IL 60120",
@@ -290,12 +290,12 @@ window.LISTINGS_DATA = [
     "msb": 19,
     "schoolWork": 50,
     "totalDrive": 101,
-    "locationScore": 6.2,
+    "locationScore": 7.6,
     "parking": "2 car garage",
     "basement": "none",
     "type": "townhome",
     "contact": "",
     "notes": "",
-    "compositeScore": 5.1
+    "compositeScore": 5.9
   }
 ];

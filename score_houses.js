@@ -1,18 +1,21 @@
 /**
  * Score each house from 1–10 using weights declared in CSV column headers.
  *
- * Edit weights in the header like "School (30%)" or "Price (30%)", then re-run:
+ * Edit weights in the header like "School (30%)" or "Price (35%)", then re-run:
  *   node score_houses.js
  *
- * Location sub-weights live on: Girls, School, Work, MSB, School/Work Commute
+ * Location sub-weights: Girls, School, MSB, School/Work Commute, Total Drive Time
+ * (Work is kept as data only — correlated with School/Work, so not in the mix.)
  * Location Score (1–10) is the weighted commute composite; its final-mix weight
  * lives on the Location Score column header.
- * Total Drive Time is Girls+School+Work+MSB only (excludes School/Work Commute).
- * Final factor weights live on: Location Score, Price, Parking, Includes Basement, Type, Baths, Beds, Sq Ft
+ * Total Drive Time = Girls+School+Work+MSB (excludes School/Work Commute).
+ * Final factor weights: Location Score, Price, Parking, Includes Basement, Type, Baths, Beds, Sq Ft
  *
- * Basement values: finished (10), unfinished (7), unknown (2.5), none (0)
- * Type values: Single Family | Townhome — scored with basement:
- *   SF+basement=10, TH+basement=7, SF+none=5, TH+none=0
+ * Continuous factors use absolute Chicago-suburb scales (not shortlist min–max).
+ * Price uses a log utility curve. Commute legs use fixed minute brackets.
+ *
+ * Basement: finished (10), unfinished (7), unknown (2.5), none (0)
+ * Type × basement: SF+basement=10, TH+basement=7, SF+none=5, TH+none=0
  */
 const fs = require("fs");
 const path = require("path");
@@ -22,25 +25,39 @@ const CSV_PATH = path.join(
   "Property Listings Overview - Cameron - Short List.csv"
 );
 
-/** Default weights if a header has no (N%) — matches original plan */
+/** Default weights if a header has no (N%) — sum to 100% per mix */
 const DEFAULTS = {
   location: {
     School: 30,
     MSB: 30,
     "School/Work Commute": 25,
     Girls: 7.5,
-    Work: 7.5,
+    "Total Drive Time": 7.5,
   },
   final: {
-    "Location Score": 30, // Location pillar (weighted commute composite)
-    Price: 30,
+    "Location Score": 35,
+    Price: 35,
     Parking: 0,
-    "Includes Basement": 15,
-    Type: 10,
+    "Includes Basement": 10,
+    Type: 5,
     Baths: 7.5,
     Beds: 3.75,
     "Sq Ft": 3.75,
   },
+};
+
+/** Absolute score anchors (Chicago NW-suburb rental context) */
+const SCALES = {
+  legBestMin: 15, // single destination: ≤15 → 10
+  legWorstMin: 45, // ≥45 → 1
+  schoolWorkBestMin: 35,
+  schoolWorkWorstMin: 70,
+  tdtBestMin: 90, // Total Drive Time (4 directs)
+  tdtWorstMin: 170,
+  priceBest: 1800, // log utility: $1800 → 10
+  priceWorst: 3800, // $3800 → 1
+  sqftLow: 1000, // → 1
+  sqftHigh: 2200, // → 10
 };
 
 function parseCsv(text) {
@@ -137,8 +154,76 @@ function ensureWeightedHeader(header, baseName, defaultPct) {
   }
 }
 
+function setWeightedHeader(header, baseName, pct) {
+  const idx = findCol(header, baseName);
+  if (idx < 0) return;
+  const { base } = parseHeader(header[idx]);
+  header[idx] = pct == null ? base : `${base} (${formatPct(pct)}%)`;
+}
+
+function stripWeight(header, baseName) {
+  setWeightedHeader(header, baseName, null);
+}
+
 function formatPct(n) {
   return Number.isInteger(n) ? String(n) : String(n);
+}
+
+function clampScore(n) {
+  if (n == null || !Number.isFinite(n)) return null;
+  return Math.max(1, Math.min(10, n));
+}
+
+/** Lower-is-better absolute linear scale between best/worst anchors */
+function scoreLowerAbsolute(value, best, worst) {
+  if (value == null || !Number.isFinite(value)) return null;
+  if (value <= best) return 10;
+  if (value >= worst) return 1;
+  return 10 - (9 * (value - best)) / (worst - best);
+}
+
+/** Higher-is-better absolute linear scale */
+function scoreHigherAbsolute(value, low, high) {
+  if (value == null || !Number.isFinite(value)) return null;
+  if (value <= low) return 1;
+  if (value >= high) return 10;
+  return 1 + (9 * (value - low)) / (high - low);
+}
+
+/** Log price utility: equal $ deltas hurt more at the high end */
+function scorePrice(price) {
+  if (price == null || !Number.isFinite(price) || price <= 0) return null;
+  const lo = SCALES.priceBest;
+  const hi = SCALES.priceWorst;
+  const t =
+    (Math.log(price) - Math.log(lo)) / (Math.log(hi) - Math.log(lo));
+  return clampScore(10 - 9 * t);
+}
+
+function scoreBeds(beds) {
+  if (beds == null) return null;
+  if (beds <= 1) return 1;
+  if (beds <= 2) return 4;
+  if (beds <= 3) return 7;
+  if (beds <= 4) return 9;
+  return 10;
+}
+
+function scoreBaths(baths) {
+  if (baths == null) return null;
+  if (baths <= 1) return 1;
+  if (baths <= 1.5) return 4;
+  if (baths <= 2) return 6.5;
+  if (baths <= 2.5) return 8.5;
+  return 10;
+}
+
+function scoreGarage(cars) {
+  if (cars == null) return 5; // unknown → neutral
+  if (cars <= 0) return 1;
+  if (cars <= 1) return 4;
+  if (cars <= 2) return 8;
+  return 10;
 }
 
 function formatMinutes(n) {
@@ -179,28 +264,6 @@ function median(nums) {
   const a = [...nums].sort((x, y) => x - y);
   const mid = Math.floor(a.length / 2);
   return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
-}
-
-function scoreLowerBetter(values) {
-  const known = values.filter((v) => v != null);
-  const min = Math.min(...known);
-  const max = Math.max(...known);
-  return values.map((v) => {
-    if (v == null) return null;
-    if (max === min) return 10;
-    return 10 - (9 * (v - min)) / (max - min);
-  });
-}
-
-function scoreHigherBetter(values) {
-  const known = values.filter((v) => v != null);
-  const min = Math.min(...known);
-  const max = Math.max(...known);
-  return values.map((v) => {
-    if (v == null) return null;
-    if (max === min) return 10;
-    return 1 + (9 * (v - min)) / (max - min);
-  });
 }
 
 function round1(n) {
@@ -295,6 +358,15 @@ function main() {
     ensureWeightedHeader(header, base, pct);
   }
 
+  // Structural: Work is data-only (correlated with School/Work). Location mix
+  // uses Total Drive Time instead. Strip any leftover Work (N%).
+  stripWeight(header, "Work");
+  ensureWeightedHeader(
+    header,
+    "Total Drive Time",
+    DEFAULTS.location["Total Drive Time"]
+  );
+
   // Score output column: Composite Score or Time
   let scoreIdx = findCol(header, "Composite Score");
   if (scoreIdx < 0) scoreIdx = findCol(header, "Time");
@@ -313,27 +385,34 @@ function main() {
   let totalDriveIdx = findCol(header, "Total Drive Time");
   let locationScoreIdx = findCol(header, "Location Score");
 
-  // Migrate: Total Drive Time should not carry the Location weight;
-  // Location Score holds the weighted commute composite + its final-mix %.
-  if (totalDriveIdx >= 0) {
-    const { base, weightPct } = parseHeader(header[totalDriveIdx]);
-    if (weightPct != null) {
-      header[totalDriveIdx] = base; // strip leftover location weight
-      if (locationScoreIdx < 0) {
-        header.splice(totalDriveIdx + 1, 0, `Location Score (${formatPct(weightPct)}%)`);
-        locationScoreIdx = totalDriveIdx + 1;
-        for (const r of rows.slice(1)) {
-          while (r.length < header.length - 1) r.push("");
-          r.splice(locationScoreIdx, 0, "");
-        }
-      } else {
-        ensureWeightedHeader(header, "Location Score", weightPct);
+  // Migrate legacy: Location final-mix % used to live on Total Drive Time.
+  // If Location Score is missing and TDT has a large weight, move it.
+  // Small TDT weights (≤15%) are location-mix sub-weights — leave them.
+  if (totalDriveIdx >= 0 && locationScoreIdx < 0) {
+    const { weightPct } = parseHeader(header[totalDriveIdx]);
+    if (weightPct != null && weightPct > 15) {
+      header[totalDriveIdx] = "Total Drive Time";
+      header.splice(
+        totalDriveIdx + 1,
+        0,
+        `Location Score (${formatPct(weightPct)}%)`
+      );
+      locationScoreIdx = totalDriveIdx + 1;
+      for (const r of rows.slice(1)) {
+        while (r.length < header.length - 1) r.push("");
+        r.splice(locationScoreIdx, 0, "");
       }
     }
   }
+  // Re-apply TDT location sub-weight after any legacy strip
+  ensureWeightedHeader(
+    header,
+    "Total Drive Time",
+    DEFAULTS.location["Total Drive Time"]
+  );
   if (locationScoreIdx < 0) {
     const insertAt = totalDriveIdx >= 0 ? totalDriveIdx + 1 : header.length;
-    header.splice(insertAt, 0, "Location Score (30%)");
+    header.splice(insertAt, 0, "Location Score (35%)");
     locationScoreIdx = insertAt;
     for (const r of rows.slice(1)) {
       while (r.length < header.length - 1) r.push("");
@@ -357,28 +436,26 @@ function main() {
       }
     }
   }
-  // Location sub-weights (normalize to sum=1)
+  // Location sub-weights (normalize to sum=1). Work is intentionally excluded.
   const locParts = {
     school: weightFor(header, "School", DEFAULTS.location),
     msb: weightFor(header, "MSB", DEFAULTS.location),
     schoolWork: weightFor(header, "School/Work Commute", DEFAULTS.location),
     girls: weightFor(header, "Girls", DEFAULTS.location),
-    work: weightFor(header, "Work", DEFAULTS.location),
+    totalDrive: weightFor(header, "Total Drive Time", DEFAULTS.location),
   };
   const locSum =
     locParts.school +
     locParts.msb +
     locParts.schoolWork +
     locParts.girls +
-    locParts.work;
+    locParts.totalDrive;
   if (locSum <= 0) throw new Error("Location weights sum to 0");
   for (const k of Object.keys(locParts)) locParts[k] /= locSum;
 
-  // Final pillar weights — Location Score carries the location mix weight
+  // Final pillar weights — only Location Score carries the location mix weight
   const finalParts = {
-    location:
-      weightFor(header, "Location Score", DEFAULTS.final) ||
-      weightFor(header, "Total Drive Time", DEFAULTS.final),
+    location: weightFor(header, "Location Score", DEFAULTS.final),
     price: weightFor(header, "Price", DEFAULTS.final),
     parking: weightFor(header, "Parking", DEFAULTS.final),
     basement: weightFor(header, "Includes Basement", DEFAULTS.final),
@@ -444,46 +521,63 @@ function main() {
   }
 
   const knownSqft = houses.map((h) => h.sqft).filter((v) => v != null);
-  const sqftMedian = knownSqft.length ? median(knownSqft) : 0;
+  const sqftMedian = knownSqft.length ? median(knownSqft) : 1500;
   for (const h of houses) {
     h.sqftFilled = h.sqft != null ? h.sqft : sqftMedian;
+    const g = h.girls || 0;
+    const s = h.school || 0;
+    const w = h.work || 0;
+    const m = h.msb || 0;
+    h.totalDrive = g + s + w + m;
   }
 
-  const girlsS = scoreLowerBetter(houses.map((h) => h.girls));
-  const schoolS = scoreLowerBetter(houses.map((h) => h.school));
-  const workS = scoreLowerBetter(houses.map((h) => h.work));
-  const msbS = scoreLowerBetter(houses.map((h) => h.msb));
-  const schoolWorkS = scoreLowerBetter(houses.map((h) => h.schoolWork));
-  const priceS = scoreLowerBetter(houses.map((h) => h.price));
-  const bedsS = scoreHigherBetter(houses.map((h) => h.beds));
-  const bathsS = scoreHigherBetter(houses.map((h) => h.baths));
-  const sqftS = scoreHigherBetter(houses.map((h) => h.sqftFilled));
+  // Absolute scales — stable when shortlist changes (no min–max within list)
+  const girlsS = houses.map((h) =>
+    scoreLowerAbsolute(h.girls, SCALES.legBestMin, SCALES.legWorstMin)
+  );
+  const schoolS = houses.map((h) =>
+    scoreLowerAbsolute(h.school, SCALES.legBestMin, SCALES.legWorstMin)
+  );
+  const msbS = houses.map((h) =>
+    scoreLowerAbsolute(h.msb, SCALES.legBestMin, SCALES.legWorstMin)
+  );
+  const schoolWorkS = houses.map((h) =>
+    scoreLowerAbsolute(
+      h.schoolWork,
+      SCALES.schoolWorkBestMin,
+      SCALES.schoolWorkWorstMin
+    )
+  );
+  const totalDriveS = houses.map((h) =>
+    scoreLowerAbsolute(h.totalDrive, SCALES.tdtBestMin, SCALES.tdtWorstMin)
+  );
+  const priceS = houses.map((h) => scorePrice(h.price));
+  const bedsS = houses.map((h) => scoreBeds(h.beds));
+  const bathsS = houses.map((h) => scoreBaths(h.baths));
+  const sqftS = houses.map((h) =>
+    scoreHigherAbsolute(h.sqftFilled, SCALES.sqftLow, SCALES.sqftHigh)
+  );
   const basementS = houses.map((h) => basementScore(h.basement));
   const typeS = houses.map((h) => typeScore(h.type, h.basement));
-  // Garage: higher car count better; if all null/equal, score 10
-  const garageVals = houses.map((h) => h.garage);
-  const garageS =
-    garageVals.every((v) => v == null)
-      ? houses.map(() => 10)
-      : scoreHigherBetter(garageVals.map((v) => (v == null ? 0 : v)));
+  const garageS = houses.map((h) => scoreGarage(h.garage));
 
   for (let i = 0; i < houses.length; i++) {
     const location =
-      locParts.school * schoolS[i] +
-      locParts.msb * msbS[i] +
-      locParts.schoolWork * schoolWorkS[i] +
-      locParts.girls * girlsS[i] +
-      locParts.work * workS[i];
+      locParts.school * (schoolS[i] ?? 5) +
+      locParts.msb * (msbS[i] ?? 5) +
+      locParts.schoolWork * (schoolWorkS[i] ?? 5) +
+      locParts.girls * (girlsS[i] ?? 5) +
+      locParts.totalDrive * (totalDriveS[i] ?? 5);
 
     const final =
       finalParts.location * location +
-      finalParts.price * priceS[i] +
+      finalParts.price * (priceS[i] ?? 5) +
       finalParts.parking * garageS[i] +
       finalParts.basement * basementS[i] +
       finalParts.type * typeS[i] +
-      finalParts.baths * bathsS[i] +
-      finalParts.beds * bedsS[i] +
-      finalParts.sqft * sqftS[i];
+      finalParts.baths * (bathsS[i] ?? 5) +
+      finalParts.beds * (bedsS[i] ?? 5) +
+      finalParts.sqft * (sqftS[i] ?? 5);
 
     houses[i].scores = {
       location: round1(location),
@@ -502,12 +596,7 @@ function main() {
     }
     // Total Drive Time = Girls+School+Work+MSB (excludes School/Work Commute)
     if (totalDriveIdx >= 0) {
-      const g = houses[i].girls || 0;
-      const s = houses[i].school || 0;
-      const w = houses[i].work || 0;
-      const m = houses[i].msb || 0;
-      houses[i].row[totalDriveIdx] = formatMinutes(g + s + w + m);
-      houses[i].totalDrive = g + s + w + m;
+      houses[i].row[totalDriveIdx] = formatMinutes(houses[i].totalDrive);
     }
   }
 
