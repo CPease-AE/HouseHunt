@@ -12,14 +12,11 @@
       --ink: #1a2420;
       --ink-soft: #3d4a44;
       --muted: #6b7a72;
-      --paper: #eef2ef;
       --panel: rgba(255, 255, 255, 0.72);
       --line: rgba(26, 36, 32, 0.12);
       --accent: #1f6b4f;
       --accent-deep: #0f3d2e;
       --warm: #c46b2c;
-      --good: #1f6b4f;
-      --mid: #b07a1a;
       --low: #9a3b2f;
       --shadow: 0 18px 50px rgba(15, 40, 30, 0.12);
       --radius: 18px;
@@ -77,7 +74,7 @@
 
     .lede {
       margin: 0;
-      max-width: 36rem;
+      max-width: 38rem;
       color: var(--ink-soft);
       font-size: 1.05rem;
       font-weight: 300;
@@ -155,7 +152,7 @@
 
     .weight-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
       gap: 1.1rem 1.5rem;
     }
     .weight-block h3 {
@@ -166,6 +163,36 @@
       color: var(--muted);
       font-weight: 600;
     }
+    .weight-total {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.75rem;
+      margin: 0 0 0.85rem;
+      padding: 0.55rem 0.7rem;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.55);
+      border: 1px solid var(--line);
+      font-size: 0.9rem;
+    }
+    .weight-total .label { color: var(--muted); }
+    .weight-total .sum {
+      font-family: "Fraunces", Georgia, serif;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      font-size: 1.15rem;
+    }
+    .weight-total.ok .sum { color: var(--accent); }
+    .weight-total.under .sum { color: var(--warm); }
+    .weight-total.over .sum { color: var(--low); }
+    .weight-total .delta {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--muted);
+    }
+    .weight-total.under .delta { color: var(--warm); }
+    .weight-total.over .delta { color: var(--low); }
+
     .slider-row {
       display: grid;
       grid-template-columns: 1fr auto;
@@ -187,10 +214,7 @@
       accent-color: var(--accent);
     }
 
-    .list {
-      display: grid;
-      gap: 0.85rem;
-    }
+    .list { display: grid; gap: 0.85rem; }
 
     .house {
       background: var(--panel);
@@ -215,9 +239,33 @@
 
     .house-top {
       display: grid;
-      grid-template-columns: auto 1fr auto;
+      grid-template-columns: auto auto 1fr auto;
       gap: 1rem;
       align-items: center;
+    }
+
+    .thumb {
+      width: 5.5rem;
+      height: 4.2rem;
+      border-radius: 12px;
+      object-fit: cover;
+      background: rgba(26, 36, 32, 0.08);
+      border: 1px solid var(--line);
+    }
+    .thumb-placeholder {
+      width: 5.5rem;
+      height: 4.2rem;
+      border-radius: 12px;
+      background:
+        linear-gradient(145deg, rgba(31,107,79,0.12), rgba(26,36,32,0.06));
+      border: 1px dashed rgba(26, 36, 32, 0.18);
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      font-size: 0.7rem;
+      text-align: center;
+      padding: 0.35rem;
+      line-height: 1.2;
     }
 
     .score-badge {
@@ -243,6 +291,13 @@
       font-weight: 500;
       letter-spacing: -0.01em;
       line-height: 1.2;
+    }
+    .full-addr {
+      margin: 0.25rem 0 0;
+      color: var(--ink-soft);
+      font-size: 0.88rem;
+      font-weight: 400;
+      line-height: 1.35;
     }
     .meta {
       margin: 0.35rem 0 0;
@@ -278,6 +333,13 @@
       border-radius: 999px;
     }
     .chip span { color: var(--muted); font-weight: 400; margin-right: 0.25rem; }
+    .chip.link {
+      background: rgba(196, 107, 44, 0.1);
+      border-color: rgba(196, 107, 44, 0.22);
+      color: var(--warm);
+      text-decoration: none;
+    }
+    .chip.link:hover { border-color: var(--warm); }
 
     .details {
       display: none;
@@ -311,6 +373,22 @@
       font-weight: 600;
       color: var(--ink);
       font-variant-numeric: tabular-nums;
+      word-break: break-word;
+    }
+    .stat a {
+      color: var(--accent);
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .stat a:hover { text-decoration: underline; }
+
+    .hero-photo {
+      width: 100%;
+      max-height: 280px;
+      object-fit: cover;
+      border-radius: 14px;
+      margin-bottom: 0.9rem;
+      border: 1px solid var(--line);
     }
 
     .breakdown {
@@ -366,6 +444,7 @@
 
     @media (max-width: 700px) {
       .house-top { grid-template-columns: auto 1fr; }
+      .thumb, .thumb-placeholder { grid-row: span 2; }
       .price { grid-column: 2; }
       .sort-label { margin-left: 0; }
     }
@@ -375,7 +454,7 @@
   <div class="wrap">
     <header class="hero">
       <h1 class="brand">House Hunt</h1>
-      <p class="lede">Compare shortlisted rentals by weighted commute, price, and home fit. Adjust the weights and watch the rankings update.</p>
+      <p class="lede">Compare shortlisted rentals by weighted commute, price, and home fit. Paste listing URLs in the CSV, sync images, then tune weights here.</p>
     </header>
 
     <div class="toolbar">
@@ -392,7 +471,7 @@
 
     <section class="weights" id="weightsPanel" aria-label="Score weights">
       <h2>Score weights</h2>
-      <p class="hint">Location sub-weights blend into the Location pillar. Final weights decide how Location, Price, and home features combine. Values normalize automatically.</p>
+      <p class="hint">Aim for <strong>100%</strong> in each mix. Totals update live — amber means under, red means over. Scoring still normalizes if you leave them unbalanced.</p>
       <div class="weight-grid">
         <div class="weight-block" id="finalWeights"></div>
         <div class="weight-block" id="locationWeights"></div>
@@ -400,22 +479,27 @@
     </section>
 
     <section class="list" id="list" aria-live="polite"></section>
-    <footer class="note">Scores are relative within this short list (1–10). Open a listing for commute and factor breakdown.</footer>
+    <footer class="note">Fill <code>Listing URL</code> in the CSV, then run <code>node sync_listings.js</code> to pull featured photos. Open a listing for details.</footer>
   </div>
 
+  <script src="listings-data.js"></script>
   <script>
-    const RAW = [
-      { address: "649 Cary Woods Cir, Cary, IL 60013", price: 2250, beds: 3, baths: 2.5, sqft: 1900, girls: 12, school: 23, work: 45, msb: 19, schoolWork: 52, totalDrive: 151, parking: "2 car garage", basement: true, contact: "Real Property Management Chicago Group", notes: "" },
-      { address: "2308 Dawson Ln, Algonquin, IL 60102", price: 2250, beds: 2, baths: 2.5, sqft: 1710, girls: 25, school: 25, work: 40, msb: 13, schoolWork: 54, totalDrive: 157, parking: "2 car garage", basement: true, contact: "Real Property Management Northwest Chicago Suburbs", notes: "" },
-      { address: "742 Pointe Dr, # 742, Crystal Lake, IL 60014", price: 2170, beds: 3, baths: 2.5, sqft: 1520, girls: 19, school: 28, work: 46, msb: 16, schoolWork: 57, totalDrive: 166, parking: "2 car garage", basement: false, contact: "DINESH AGARWAL (224) 288-0882", notes: "Agent Owned" },
-      { address: "3829 Eastway Dr. Island Lake", price: 2250, beds: 3, baths: 2, sqft: 1356, girls: 14, school: 27, work: 48, msb: 28, schoolWork: 56, totalDrive: 173, parking: "2.5 car garage", basement: true, contact: "", notes: "" },
-      { address: "1441 Meadowsedge Ln, Carpentersville, IL 60110", price: 2415, beds: 2, baths: 1.5, sqft: null, girls: 28, school: 25, work: 35, msb: 9, schoolWork: 54, totalDrive: 151, parking: "2 car garage", basement: true, contact: "American Homes 4 Rent (224) 243-3416", notes: "" },
-      { address: "515 Eichler Dr West Dundee, IL 60118", price: 2400, beds: 2, baths: 1.5, sqft: 1250, girls: 25, school: 19, work: 31, msb: 4, schoolWork: 48, totalDrive: 127, parking: "2 car garage", basement: false, contact: "", notes: "" },
-      { address: "195 Tollview Ter, Gilberts, IL", price: 2300, beds: 3, baths: 1.5, sqft: null, girls: 32, school: 28, work: 35, msb: 12, schoolWork: 57, totalDrive: 164, parking: "2 car garage", basement: false, contact: "Frank Lamco (815) 893-9264", notes: "Pool" },
-      { address: "45 Golfview Rd, Lake Zurich, IL 60047", price: 2499, beds: 3, baths: 1, sqft: 1050, girls: 8, school: 16, work: 37, msb: 32, schoolWork: 45, totalDrive: 138, parking: "2 car garage", basement: false, contact: "Anastasiia Chornii (773) 985-8499", notes: "" },
-      { address: "506 Barrett Street, Elgin", price: 2500, beds: 3, baths: 1, sqft: 1430, girls: 33, school: 25, work: 31, msb: 18, schoolWork: 54, totalDrive: 161, parking: "2 car garage", basement: false, contact: "", notes: "" },
-      { address: "3211 S Ronan Dr # 0, Lake in the Hills, IL 60156", price: 2500, beds: 2, baths: 2.5, sqft: 1790, girls: 28, school: 32, work: 46, msb: 20, schoolWork: 61, totalDrive: 187, parking: "2 car garage", basement: false, contact: "", notes: "Listing id 12749810" },
+    const FALLBACK = [
+      { address: "649 Cary Woods Cir, Cary, IL 60013", listingUrl: "", imageUrl: null, imageLocal: null, price: 2250, beds: 3, baths: 2.5, sqft: 1900, girls: 12, school: 23, work: 45, msb: 19, schoolWork: 52, totalDrive: 151, parking: "2 car garage", basement: true, contact: "Real Property Management Chicago Group", notes: "" },
+      { address: "2308 Dawson Ln, Algonquin, IL 60102", listingUrl: "", imageUrl: null, imageLocal: null, price: 2250, beds: 2, baths: 2.5, sqft: 1710, girls: 25, school: 25, work: 40, msb: 13, schoolWork: 54, totalDrive: 157, parking: "2 car garage", basement: true, contact: "Real Property Management Northwest Chicago Suburbs", notes: "" },
+      { address: "742 Pointe Dr, # 742, Crystal Lake, IL 60014", listingUrl: "", imageUrl: null, imageLocal: null, price: 2170, beds: 3, baths: 2.5, sqft: 1520, girls: 19, school: 28, work: 46, msb: 16, schoolWork: 57, totalDrive: 166, parking: "2 car garage", basement: false, contact: "DINESH AGARWAL (224) 288-0882", notes: "Agent Owned" },
+      { address: "3829 Eastway Dr. Island Lake", listingUrl: "", imageUrl: null, imageLocal: null, price: 2250, beds: 3, baths: 2, sqft: 1356, girls: 14, school: 27, work: 48, msb: 28, schoolWork: 56, totalDrive: 173, parking: "2.5 car garage", basement: true, contact: "", notes: "" },
+      { address: "1441 Meadowsedge Ln, Carpentersville, IL 60110", listingUrl: "", imageUrl: null, imageLocal: null, price: 2415, beds: 2, baths: 1.5, sqft: null, girls: 28, school: 25, work: 35, msb: 9, schoolWork: 54, totalDrive: 151, parking: "2 car garage", basement: true, contact: "American Homes 4 Rent (224) 243-3416", notes: "" },
+      { address: "515 Eichler Dr West Dundee, IL 60118", listingUrl: "", imageUrl: null, imageLocal: null, price: 2400, beds: 2, baths: 1.5, sqft: 1250, girls: 25, school: 19, work: 31, msb: 4, schoolWork: 48, totalDrive: 127, parking: "2 car garage", basement: false, contact: "", notes: "" },
+      { address: "195 Tollview Ter, Gilberts, IL", listingUrl: "", imageUrl: null, imageLocal: null, price: 2300, beds: 3, baths: 1.5, sqft: null, girls: 32, school: 28, work: 35, msb: 12, schoolWork: 57, totalDrive: 164, parking: "2 car garage", basement: false, contact: "Frank Lamco (815) 893-9264", notes: "Pool" },
+      { address: "45 Golfview Rd, Lake Zurich, IL 60047", listingUrl: "", imageUrl: null, imageLocal: null, price: 2499, beds: 3, baths: 1, sqft: 1050, girls: 8, school: 16, work: 37, msb: 32, schoolWork: 45, totalDrive: 138, parking: "2 car garage", basement: false, contact: "Anastasiia Chornii (773) 985-8499", notes: "" },
+      { address: "506 Barrett Street, Elgin", listingUrl: "", imageUrl: null, imageLocal: null, price: 2500, beds: 3, baths: 1, sqft: 1430, girls: 33, school: 25, work: 31, msb: 18, schoolWork: 54, totalDrive: 161, parking: "2 car garage", basement: false, contact: "", notes: "" },
+      { address: "3211 S Ronan Dr # 0, Lake in the Hills, IL 60156", listingUrl: "", imageUrl: null, imageLocal: null, price: 2500, beds: 2, baths: 2.5, sqft: 1790, girls: 28, school: 32, work: 46, msb: 20, schoolWork: 61, totalDrive: 187, parking: "2 car garage", basement: false, contact: "", notes: "Listing id 12749810" },
     ];
+
+    const RAW = (window.LISTINGS_DATA && window.LISTINGS_DATA.length)
+      ? window.LISTINGS_DATA
+      : FALLBACK;
 
     const DEFAULT_FINAL = {
       location: 35,
@@ -423,7 +507,8 @@
       parking: 0,
       basement: 15,
       baths: 7.5,
-      sqft: 7.5,
+      beds: 3.75,
+      sqft: 3.75,
     };
     const DEFAULT_LOC = {
       school: 30,
@@ -439,6 +524,7 @@
       parking: "Garage",
       basement: "Basement",
       baths: "Baths",
+      beds: "Beds",
       sqft: "Sq Ft",
     };
     const LOC_LABELS = {
@@ -498,7 +584,7 @@
     }
 
     function shortAddress(a) {
-      return a.split(",")[0].trim();
+      return String(a || "").split(",")[0].trim();
     }
 
     function garageCars(text) {
@@ -511,6 +597,21 @@
       const out = {};
       for (const [k, v] of Object.entries(map)) out[k] = sum > 0 ? v / sum : 0;
       return out;
+    }
+
+    function sumWeights(map) {
+      return Object.values(map).reduce((a, b) => a + Number(b || 0), 0);
+    }
+
+    function totalState(sum) {
+      const s = round1(sum);
+      if (Math.abs(s - 100) < 0.05) return { cls: "ok", label: "on target" };
+      if (s < 100) return { cls: "under", label: (round1(100 - s)) + "% under" };
+      return { cls: "over", label: (round1(s - 100)) + "% over" };
+    }
+
+    function photoSrc(h) {
+      return h.imageLocal || h.imageUrl || null;
     }
 
     function scoreAll() {
@@ -528,6 +629,7 @@
       const msbS = scoreLowerBetter(houses.map((h) => h.msb));
       const schoolWorkS = scoreLowerBetter(houses.map((h) => h.schoolWork));
       const priceS = scoreLowerBetter(houses.map((h) => h.price));
+      const bedsS = scoreHigherBetter(houses.map((h) => h.beds));
       const bathsS = scoreHigherBetter(houses.map((h) => h.baths));
       const sqftS = scoreHigherBetter(houses.map((h) => h.sqftFilled));
       const basementS = houses.map((h) => (h.basement ? 10 : 1));
@@ -552,6 +654,7 @@
           finN.parking * garageS[i] +
           finN.basement * basementS[i] +
           finN.baths * bathsS[i] +
+          (finN.beds || 0) * bedsS[i] +
           finN.sqft * sqftS[i];
         return {
           ...h,
@@ -560,6 +663,7 @@
             price: round1(priceS[i]),
             basement: basementS[i],
             baths: round1(bathsS[i]),
+            beds: round1(bedsS[i]),
             sqft: round1(sqftS[i]),
             garage: round1(garageS[i]),
             final: round1(final),
@@ -574,11 +678,34 @@
       return "low";
     }
 
-    function renderWeightBlock(container, map, labels, onChange) {
+    function updateWeightTotals() {
+      document.querySelectorAll(".weight-total").forEach((el) => {
+        const which = el.dataset.which;
+        const sum = sumWeights(which === "final" ? finalW : locW);
+        const state = totalState(sum);
+        el.className = "weight-total " + state.cls;
+        el.querySelector(".sum").textContent = round1(sum) + "%";
+        el.querySelector(".delta").textContent = state.label;
+      });
+    }
+
+    function renderWeightBlock(container, map, labels, which) {
       container.innerHTML = "";
       const title = document.createElement("h3");
-      title.textContent = container.id === "finalWeights" ? "Final mix" : "Location mix";
+      title.textContent = which === "final" ? "Final mix" : "Location mix";
       container.appendChild(title);
+
+      const total = document.createElement("div");
+      total.className = "weight-total";
+      total.dataset.which = which;
+      total.innerHTML = `
+        <span class="label">Total</span>
+        <span>
+          <span class="sum">0%</span>
+          <span class="delta"></span>
+        </span>
+      `;
+      container.appendChild(total);
 
       for (const [key, label] of Object.entries(labels)) {
         const row = document.createElement("div");
@@ -586,20 +713,30 @@
         row.innerHTML = `
           <label for="${container.id}-${key}">${label}</label>
           <span class="val">${map[key]}%</span>
-          <input type="range" id="${container.id}-${key}" min="0" max="50" step="0.5" value="${map[key]}" />
+          <input type="range" id="${container.id}-${key}" min="0" max="100" step="0.5" value="${map[key]}" />
         `;
         const input = row.querySelector("input");
         const val = row.querySelector(".val");
         input.addEventListener("input", () => {
           map[key] = parseFloat(input.value);
           val.textContent = map[key] + "%";
-          onChange();
+          refresh();
         });
         container.appendChild(row);
       }
     }
 
+    function escapeHtml(s) {
+      return String(s || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
     function renderList() {
+      updateWeightTotals();
+
       let houses = scoreAll();
       const sortBy = document.getElementById("sortBy").value;
       houses = [...houses].sort((a, b) => {
@@ -621,22 +758,34 @@
         el.setAttribute("aria-expanded", openId === h.id ? "true" : "false");
 
         const sqftLabel = h.sqft != null ? h.sqft.toLocaleString() + " sq ft" : "Sq ft n/a";
+        const photo = photoSrc(h);
+        const thumbHtml = photo
+          ? `<img class="thumb" src="${escapeHtml(photo)}" alt="" loading="lazy" />`
+          : `<div class="thumb-placeholder">No photo yet</div>`;
+
+        const listingChip = h.listingUrl
+          ? `<a class="chip link" href="${escapeHtml(h.listingUrl)}" target="_blank" rel="noopener" data-stop>View listing</a>`
+          : `<div class="chip"><span>Listing</span>URL needed</div>`;
+
         el.innerHTML = `
           <div class="house-top">
+            ${thumbHtml}
             <div class="score-badge ${scoreClass(h.scores.final)}">${h.scores.final.toFixed(1)}</div>
             <div>
-              <h2 class="addr">${shortAddress(h.address)}</h2>
+              <h2 class="addr">${escapeHtml(shortAddress(h.address))}</h2>
+              <p class="full-addr">${escapeHtml(h.address)}</p>
               <p class="meta">
                 <span><strong>${h.beds}</strong> bed</span>
                 <span><strong>${h.baths}</strong> bath</span>
                 <span><strong>${sqftLabel}</strong></span>
                 <span>${h.basement ? "Basement" : "No basement"}</span>
-                ${h.notes ? `<span>${h.notes}</span>` : ""}
+                ${h.notes ? `<span>${escapeHtml(h.notes)}</span>` : ""}
               </p>
             </div>
             <div class="price">${formatMoney(h.price)}</div>
           </div>
           <div class="chips">
+            ${listingChip}
             <div class="chip"><span>School</span>${formatMins(h.school)}</div>
             <div class="chip"><span>MSB</span>${formatMins(h.msb)}</div>
             <div class="chip"><span>School/Work</span>${formatMins(h.schoolWork)}</div>
@@ -644,10 +793,16 @@
             <div class="chip"><span>Work</span>${formatMins(h.work)}</div>
           </div>
           <div class="details">
+            ${photo ? `<img class="hero-photo" src="${escapeHtml(photo)}" alt="" />` : ""}
             <div class="detail-grid">
-              <div class="stat"><span class="k">Full address</span><span class="v">${h.address}</span></div>
+              <div class="stat"><span class="k">Full address</span><span class="v">${escapeHtml(h.address)}</span></div>
+              <div class="stat"><span class="k">Listing</span><span class="v">${
+                h.listingUrl
+                  ? `<a href="${escapeHtml(h.listingUrl)}" target="_blank" rel="noopener" data-stop>Open listing</a>`
+                  : "Add URL in CSV"
+              }</span></div>
               <div class="stat"><span class="k">Total drive</span><span class="v">${formatMins(h.totalDrive)}</span></div>
-              <div class="stat"><span class="k">Parking</span><span class="v">${h.parking || "—"}</span></div>
+              <div class="stat"><span class="k">Parking</span><span class="v">${escapeHtml(h.parking || "—")}</span></div>
               <div class="stat"><span class="k">Location score</span><span class="v">${h.scores.location}</span></div>
             </div>
             <div class="breakdown">
@@ -655,9 +810,10 @@
               ${factorBar("Price", h.scores.price)}
               ${factorBar("Basement", h.scores.basement)}
               ${factorBar("Baths", h.scores.baths)}
+              ${factorBar("Beds", h.scores.beds)}
               ${factorBar("Sq Ft", h.scores.sqft)}
             </div>
-            ${h.contact ? `<p class="contact">Contact: ${h.contact}</p>` : ""}
+            ${h.contact ? `<p class="contact">Contact: ${escapeHtml(h.contact)}</p>` : ""}
           </div>
         `;
 
@@ -665,7 +821,10 @@
           openId = openId === h.id ? null : h.id;
           renderList();
         };
-        el.addEventListener("click", toggle);
+        el.addEventListener("click", (e) => {
+          if (e.target.closest("[data-stop]")) return;
+          toggle();
+        });
         el.addEventListener("keydown", (e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
@@ -674,7 +833,6 @@
         });
         list.appendChild(el);
 
-        // Animate bars after mount
         requestAnimationFrame(() => {
           el.querySelectorAll(".bar-fill").forEach((bar) => {
             bar.style.width = bar.dataset.w + "%";
@@ -704,14 +862,14 @@
     document.getElementById("resetWeights").addEventListener("click", () => {
       finalW = { ...DEFAULT_FINAL };
       locW = { ...DEFAULT_LOC };
-      renderWeightBlock(document.getElementById("finalWeights"), finalW, FINAL_LABELS, refresh);
-      renderWeightBlock(document.getElementById("locationWeights"), locW, LOC_LABELS, refresh);
+      renderWeightBlock(document.getElementById("finalWeights"), finalW, FINAL_LABELS, "final");
+      renderWeightBlock(document.getElementById("locationWeights"), locW, LOC_LABELS, "location");
       refresh();
     });
     document.getElementById("sortBy").addEventListener("change", refresh);
 
-    renderWeightBlock(document.getElementById("finalWeights"), finalW, FINAL_LABELS, refresh);
-    renderWeightBlock(document.getElementById("locationWeights"), locW, LOC_LABELS, refresh);
+    renderWeightBlock(document.getElementById("finalWeights"), finalW, FINAL_LABELS, "final");
+    renderWeightBlock(document.getElementById("locationWeights"), locW, LOC_LABELS, "location");
     refresh();
   </script>
 </body>

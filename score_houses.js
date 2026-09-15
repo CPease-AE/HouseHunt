@@ -31,7 +31,8 @@ const DEFAULTS = {
     Parking: 0,
     "Includes Basement": 15,
     Baths: 7.5,
-    "Sq Ft": 7.5,
+    Beds: 3.75,
+    "Sq Ft": 3.75,
   },
 };
 
@@ -213,6 +214,7 @@ function main() {
 
   const addressIdx = findCol(header, "Address");
   const priceIdx = findCol(header, "Price");
+  const bedsIdx = findCol(header, "Beds");
   const bathsIdx = findCol(header, "Baths");
   const sqftIdx = findCol(header, "Sq Ft");
   const girlsIdx = findCol(header, "Girls");
@@ -247,6 +249,7 @@ function main() {
     parking: weightFor(header, "Parking", DEFAULTS.final),
     basement: weightFor(header, "Includes Basement", DEFAULTS.final),
     baths: weightFor(header, "Baths", DEFAULTS.final),
+    beds: weightFor(header, "Beds", DEFAULTS.final),
     sqft: weightFor(header, "Sq Ft", DEFAULTS.final),
   };
   const finalSum =
@@ -255,6 +258,7 @@ function main() {
     finalParts.parking +
     finalParts.basement +
     finalParts.baths +
+    finalParts.beds +
     finalParts.sqft;
   if (finalSum <= 0) throw new Error("Final weights sum to 0");
   for (const k of Object.keys(finalParts)) finalParts[k] /= finalSum;
@@ -276,6 +280,7 @@ function main() {
       row: r,
       address: r[addressIdx],
       price: parsePrice(r[priceIdx]),
+      beds: parseNumber(r[bedsIdx]),
       baths: parseNumber(r[bathsIdx]),
       sqft: parseNumber(r[sqftIdx]),
       girls: parseMinutes(r[girlsIdx]),
@@ -300,6 +305,7 @@ function main() {
   const msbS = scoreLowerBetter(houses.map((h) => h.msb));
   const schoolWorkS = scoreLowerBetter(houses.map((h) => h.schoolWork));
   const priceS = scoreLowerBetter(houses.map((h) => h.price));
+  const bedsS = scoreHigherBetter(houses.map((h) => h.beds));
   const bathsS = scoreHigherBetter(houses.map((h) => h.baths));
   const sqftS = scoreHigherBetter(houses.map((h) => h.sqftFilled));
   const basementS = houses.map((h) => (h.basement ? 10 : 1));
@@ -324,6 +330,7 @@ function main() {
       finalParts.parking * garageS[i] +
       finalParts.basement * basementS[i] +
       finalParts.baths * bathsS[i] +
+      finalParts.beds * bedsS[i] +
       finalParts.sqft * sqftS[i];
 
     houses[i].scores = {
@@ -331,6 +338,7 @@ function main() {
       price: round1(priceS[i]),
       basement: basementS[i],
       baths: round1(bathsS[i]),
+      beds: round1(bedsS[i]),
       sqft: round1(sqftS[i]),
       garage: round1(garageS[i]),
       final: round1(final),
@@ -343,14 +351,14 @@ function main() {
   const ranked = [...houses].sort((a, b) => b.scores.final - a.scores.final);
   console.log("\nRanked scores (best first):\n");
   console.log(
-    "Score | Location | Price | Basement | Baths | SqFt | Address"
+    "Score | Location | Price | Basement | Beds | Baths | SqFt | Address"
   );
-  console.log("-".repeat(90));
+  console.log("-".repeat(100));
   for (const h of ranked) {
     const s = h.scores;
     const short = String(h.address || "").split(",")[0].trim();
     console.log(
-      `${s.final.toFixed(1).padStart(5)} | ${String(s.location).padStart(8)} | ${String(s.price).padStart(5)} | ${String(s.basement).padStart(8)} | ${String(s.baths).padStart(5)} | ${String(s.sqft).padStart(4)} | ${short}`
+      `${s.final.toFixed(1).padStart(5)} | ${String(s.location).padStart(8)} | ${String(s.price).padStart(5)} | ${String(s.basement).padStart(8)} | ${String(s.beds).padStart(4)} | ${String(s.baths).padStart(5)} | ${String(s.sqft).padStart(4)} | ${short}`
     );
   }
   console.log(`\nUpdated ${CSV_PATH}`);
