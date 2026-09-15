@@ -2,7 +2,7 @@
  * Fetch Google Maps drive times for houses in Property Listings Overview.
  *
  * Reads each Address, fills Girls / School / Work / MSB / School/Work Commute /
- * Total Drive Time, then writes back to the CSV.
+ * Total Drive Time (Girls+School+Work+MSB only — excludes School/Work), then writes back.
  *
  * Usage:
  *   node fetch_times.js          # only rows missing commute times
@@ -320,12 +320,12 @@ async function main() {
 
     const schoolWorkMin =
       (schoolMin != null ? schoolMin : 0) + (leg2Min || 0);
+    // Total drive = sum of direct destinations only (excludes School/Work combo leg)
     const totalMin =
       (girlsMin || 0) +
       (schoolMin || 0) +
       (workMin || 0) +
-      (msbMin || 0) +
-      schoolWorkMin;
+      (msbMin || 0);
 
     row[idxs.Girls] = girls?.label || formatMinutes(girlsMin) || "";
     row[idxs.School] = school?.label || formatMinutes(schoolMin) || "";
@@ -338,7 +338,7 @@ async function main() {
     row[addressIdx] = address;
 
     console.log(
-      `  School/Work ${formatMinutes(schoolWorkMin)} | Total ${formatMinutes(totalMin)}`
+      `  School/Work ${formatMinutes(schoolWorkMin)} | Total (excl. School/Work) ${formatMinutes(totalMin)}`
     );
     updated++;
   }

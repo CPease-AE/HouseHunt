@@ -13,13 +13,14 @@ window.LISTINGS_DATA = [
     "work": 45,
     "msb": 19,
     "schoolWork": 52,
-    "totalDrive": 151,
+    "totalDrive": 99,
+    "locationScore": 5.7,
     "parking": "2 car garage",
     "basement": "finished",
     "type": "townhome",
     "contact": "Real Property Management Chicago Group",
     "notes": "",
-    "compositeScore": 7.4
+    "compositeScore": 7.5
   },
   {
     "address": "2308 Dawson Ln, Algonquin, IL 60102",
@@ -35,13 +36,14 @@ window.LISTINGS_DATA = [
     "work": 40,
     "msb": 13,
     "schoolWork": 54,
-    "totalDrive": 157,
+    "totalDrive": 103,
+    "locationScore": 5.5,
     "parking": "2 car garage",
     "basement": "finished",
     "type": "townhome",
     "contact": "Real Property Management Northwest Chicago Suburbs",
     "notes": "",
-    "compositeScore": 7.1
+    "compositeScore": 7.2
   },
   {
     "address": "742 Pointe Dr, # 742, Crystal Lake, IL 60014",
@@ -57,13 +59,14 @@ window.LISTINGS_DATA = [
     "work": 46,
     "msb": 16,
     "schoolWork": 57,
-    "totalDrive": 166,
+    "totalDrive": 109,
+    "locationScore": 4.3,
     "parking": "2 car garage",
     "basement": "none",
     "type": "townhome",
     "contact": "DINESH AGARWAL (224) 288-0882",
     "notes": "Agent Owned",
-    "compositeScore": 5.4
+    "compositeScore": 5.2
   },
   {
     "address": "3829 Eastway Dr. Island Lake",
@@ -79,7 +82,8 @@ window.LISTINGS_DATA = [
     "work": 48,
     "msb": 28,
     "schoolWork": 56,
-    "totalDrive": 173,
+    "totalDrive": 117,
+    "locationScore": 3.5,
     "parking": "2.5 car garage",
     "basement": "unfinished",
     "type": "single-family",
@@ -101,7 +105,8 @@ window.LISTINGS_DATA = [
     "work": 35,
     "msb": 9,
     "schoolWork": 54,
-    "totalDrive": 151,
+    "totalDrive": 97,
+    "locationScore": 6,
     "parking": "2 car garage",
     "basement": "finished",
     "type": "townhome",
@@ -123,13 +128,14 @@ window.LISTINGS_DATA = [
     "work": 31,
     "msb": 4,
     "schoolWork": 48,
-    "totalDrive": 127,
+    "totalDrive": 79,
+    "locationScore": 8.5,
     "parking": "2 car garage",
     "basement": "unknown",
     "type": "townhome",
     "contact": "",
     "notes": "",
-    "compositeScore": 5.4
+    "compositeScore": 5.2
   },
   {
     "address": "195 Tollview Ter, Gilberts, IL",
@@ -145,7 +151,8 @@ window.LISTINGS_DATA = [
     "work": 35,
     "msb": 12,
     "schoolWork": 57,
-    "totalDrive": 164,
+    "totalDrive": 107,
+    "locationScore": 4.7,
     "parking": "2 car garage",
     "basement": "unknown",
     "type": "single-family",
@@ -167,13 +174,14 @@ window.LISTINGS_DATA = [
     "work": 37,
     "msb": 32,
     "schoolWork": 45,
-    "totalDrive": 138,
+    "totalDrive": 93,
+    "locationScore": 7,
     "parking": "2 car garage",
     "basement": "none",
     "type": "single-family",
     "contact": "Anastasiia Chornii (773) 985-8499",
     "notes": "",
-    "compositeScore": 4
+    "compositeScore": 3.9
   },
   {
     "address": "506 Barrett Street, Elgin",
@@ -189,7 +197,8 @@ window.LISTINGS_DATA = [
     "work": 31,
     "msb": 18,
     "schoolWork": 54,
-    "totalDrive": 161,
+    "totalDrive": 107,
+    "locationScore": 5.1,
     "parking": "2 car garage",
     "basement": "unfinished",
     "type": "single-family",
@@ -211,7 +220,8 @@ window.LISTINGS_DATA = [
     "work": 46,
     "msb": 20,
     "schoolWork": 61,
-    "totalDrive": 187,
+    "totalDrive": 126,
+    "locationScore": 2.4,
     "parking": "2 car garage",
     "basement": "none",
     "type": "townhome",
@@ -233,13 +243,14 @@ window.LISTINGS_DATA = [
     "work": 49,
     "msb": 21,
     "schoolWork": 54,
-    "totalDrive": 166,
+    "totalDrive": 112,
+    "locationScore": 4.5,
     "parking": "2 car garage",
     "basement": "unknown",
     "type": "single-family",
     "contact": "Jack Domanski - Brokerocity",
     "notes": "Pond",
-    "compositeScore": 3.8
+    "compositeScore": 3.9
   },
   {
     "address": "653 Cress Creek Ln, Crystal Lake, IL 60014",
@@ -255,13 +266,14 @@ window.LISTINGS_DATA = [
     "work": 48,
     "msb": 20,
     "schoolWork": 58,
-    "totalDrive": 181,
+    "totalDrive": 123,
+    "locationScore": 3.2,
     "parking": "2 car garage",
     "basement": "finished",
     "type": "townhome",
     "contact": "",
     "notes": "",
-    "compositeScore": 5.1
+    "compositeScore": 5.3
   },
   {
     "address": "563 Littleton Trl, Elgin, IL 60120",
@@ -277,12 +289,13 @@ window.LISTINGS_DATA = [
     "work": 29,
     "msb": 19,
     "schoolWork": 50,
-    "totalDrive": 151,
+    "totalDrive": 101,
+    "locationScore": 6.2,
     "parking": "2 car garage",
     "basement": "none",
     "type": "townhome",
     "contact": "",
     "notes": "",
-    "compositeScore": 5.3
+    "compositeScore": 5.1
   }
 ];

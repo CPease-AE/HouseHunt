@@ -1,12 +1,14 @@
 /**
  * Score each house from 1–10 using weights declared in CSV column headers.
  *
- * Edit weights in the header like "School (30%)" or "Price (35%)", then re-run:
+ * Edit weights in the header like "School (30%)" or "Price (30%)", then re-run:
  *   node score_houses.js
  *
  * Location sub-weights live on: Girls, School, Work, MSB, School/Work Commute
- * Location's share of the final score lives on: Total Drive Time
- * Final factor weights live on: Price, Parking, Includes Basement, Type, Baths, Beds, Sq Ft
+ * Location Score (1–10) is the weighted commute composite; its final-mix weight
+ * lives on the Location Score column header.
+ * Total Drive Time is Girls+School+Work+MSB only (excludes School/Work Commute).
+ * Final factor weights live on: Location Score, Price, Parking, Includes Basement, Type, Baths, Beds, Sq Ft
  *
  * Basement values: finished (10), unfinished (7), unknown (2.5), none (0)
  * Type values: Single Family | Townhome — scored with basement:
@@ -30,8 +32,8 @@ const DEFAULTS = {
     Work: 7.5,
   },
   final: {
-    "Total Drive Time": 35, // Location pillar
-    Price: 35,
+    "Location Score": 30, // Location pillar (weighted commute composite)
+    Price: 30,
     Parking: 0,
     "Includes Basement": 15,
     Type: 10,
@@ -137,6 +139,16 @@ function ensureWeightedHeader(header, baseName, defaultPct) {
 
 function formatPct(n) {
   return Number.isInteger(n) ? String(n) : String(n);
+}
+
+function formatMinutes(n) {
+  if (n == null || !Number.isFinite(n)) return "";
+  const minutes = Math.max(0, Math.round(n));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (mins === 0) return `${hours} hr`;
+  return `${hours} hr ${mins} min`;
 }
 
 function parseMinutes(text) {
@@ -298,10 +310,53 @@ function main() {
   const workIdx = findCol(header, "Work");
   const msbIdx = findCol(header, "MSB");
   const schoolWorkIdx = findCol(header, "School/Work Commute");
+  let totalDriveIdx = findCol(header, "Total Drive Time");
+  let locationScoreIdx = findCol(header, "Location Score");
+
+  // Migrate: Total Drive Time should not carry the Location weight;
+  // Location Score holds the weighted commute composite + its final-mix %.
+  if (totalDriveIdx >= 0) {
+    const { base, weightPct } = parseHeader(header[totalDriveIdx]);
+    if (weightPct != null) {
+      header[totalDriveIdx] = base; // strip leftover location weight
+      if (locationScoreIdx < 0) {
+        header.splice(totalDriveIdx + 1, 0, `Location Score (${formatPct(weightPct)}%)`);
+        locationScoreIdx = totalDriveIdx + 1;
+        for (const r of rows.slice(1)) {
+          while (r.length < header.length - 1) r.push("");
+          r.splice(locationScoreIdx, 0, "");
+        }
+      } else {
+        ensureWeightedHeader(header, "Location Score", weightPct);
+      }
+    }
+  }
+  if (locationScoreIdx < 0) {
+    const insertAt = totalDriveIdx >= 0 ? totalDriveIdx + 1 : header.length;
+    header.splice(insertAt, 0, "Location Score (30%)");
+    locationScoreIdx = insertAt;
+    for (const r of rows.slice(1)) {
+      while (r.length < header.length - 1) r.push("");
+      r.splice(locationScoreIdx, 0, "");
+    }
+  }
+
+  // Re-resolve ALL indices after possible header/row splices
+  totalDriveIdx = findCol(header, "Total Drive Time");
+  locationScoreIdx = findCol(header, "Location Score");
   const basementIdx = findCol(header, "Includes Basement");
   const typeIdx = findCol(header, "Type");
   const parkingIdx = findCol(header, "Parking");
+  const brokerageIdx = findCol(header, "Brokerage Comp");
 
+  // Undo accidental "unknown" written into Brokerage Comp during a prior bad run
+  if (brokerageIdx >= 0) {
+    for (const r of rows.slice(1)) {
+      if (/^(unknown|finished|unfinished|none)$/i.test(String(r[brokerageIdx] || "").trim())) {
+        r[brokerageIdx] = "";
+      }
+    }
+  }
   // Location sub-weights (normalize to sum=1)
   const locParts = {
     school: weightFor(header, "School", DEFAULTS.location),
@@ -319,9 +374,11 @@ function main() {
   if (locSum <= 0) throw new Error("Location weights sum to 0");
   for (const k of Object.keys(locParts)) locParts[k] /= locSum;
 
-  // Final pillar weights
+  // Final pillar weights — Location Score carries the location mix weight
   const finalParts = {
-    location: weightFor(header, "Total Drive Time", DEFAULTS.final),
+    location:
+      weightFor(header, "Location Score", DEFAULTS.final) ||
+      weightFor(header, "Total Drive Time", DEFAULTS.final),
     price: weightFor(header, "Price", DEFAULTS.final),
     parking: weightFor(header, "Parking", DEFAULTS.final),
     basement: weightFor(header, "Includes Basement", DEFAULTS.final),
@@ -440,6 +497,18 @@ function main() {
       final: round1(final),
     };
     houses[i].row[scoreIdx] = String(houses[i].scores.final);
+    if (locationScoreIdx >= 0) {
+      houses[i].row[locationScoreIdx] = String(houses[i].scores.location);
+    }
+    // Total Drive Time = Girls+School+Work+MSB (excludes School/Work Commute)
+    if (totalDriveIdx >= 0) {
+      const g = houses[i].girls || 0;
+      const s = houses[i].school || 0;
+      const w = houses[i].work || 0;
+      const m = houses[i].msb || 0;
+      houses[i].row[totalDriveIdx] = formatMinutes(g + s + w + m);
+      houses[i].totalDrive = g + s + w + m;
+    }
   }
 
   fs.writeFileSync(CSV_PATH, toCsv([header, ...dataRows]), "utf8");

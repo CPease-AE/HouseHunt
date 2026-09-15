@@ -326,12 +326,43 @@
     }
     .meta strong { color: var(--ink-soft); font-weight: 560; }
 
+    .price-block {
+      text-align: right;
+      display: grid;
+      gap: 0.35rem;
+      justify-items: end;
+    }
     .price {
       font-family: "Fraunces", Georgia, serif;
       font-size: 1.35rem;
       font-weight: 700;
       color: var(--accent-deep);
       white-space: nowrap;
+    }
+    .metrics {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.15rem;
+    }
+    .metric {
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--ink-soft);
+      background: rgba(255,255,255,0.65);
+      border: 1px solid var(--line);
+      padding: 0.28rem 0.55rem;
+      border-radius: 999px;
+      font-variant-numeric: tabular-nums;
+    }
+    .metric strong {
+      color: var(--accent-deep);
+      font-weight: 650;
+    }
+    .metric span {
+      color: var(--muted);
+      font-weight: 400;
+      margin-right: 0.25rem;
     }
 
     .chips {
@@ -485,9 +516,9 @@
       <span class="sort-label">Sort by</span>
       <select class="sort" id="sortBy" aria-label="Sort listings">
         <option value="score">Composite score</option>
+        <option value="location">Location score (high → low)</option>
+        <option value="totalDrive">Total drive time (low → high)</option>
         <option value="price">Price (low → high)</option>
-        <option value="location">Location score</option>
-        <option value="totalDrive">Total drive time</option>
       </select>
     </div>
 
@@ -524,8 +555,8 @@
       : FALLBACK;
 
     const DEFAULT_FINAL = {
-      location: 35,
-      price: 35,
+      location: 30,
+      price: 30,
       parking: 0,
       basement: 15,
       type: 10,
@@ -698,12 +729,24 @@
 
     function scoreAll() {
       const sqftMedian = median(RAW.map((h) => h.sqft).filter((v) => v != null));
-      const houses = RAW.map((h, i) => ({
-        ...h,
-        id: i,
-        sqftFilled: h.sqft != null ? h.sqft : sqftMedian,
-        garage: garageCars(h.parking),
-      }));
+      const houses = RAW.map((h, i) => {
+        const girls = h.girls;
+        const school = h.school;
+        const work = h.work;
+        const msb = h.msb;
+        // Total Drive Time = directs only (excludes School/Work)
+        const totalDrive =
+          h.totalDrive != null && h.totalDrive > 0
+            ? h.totalDrive
+            : (girls || 0) + (school || 0) + (work || 0) + (msb || 0);
+        return {
+          ...h,
+          id: i,
+          totalDrive,
+          sqftFilled: h.sqft != null ? h.sqft : sqftMedian,
+          garage: garageCars(h.parking),
+        };
+      });
 
       const girlsS = scoreLowerBetter(houses.map((h) => h.girls));
       const schoolS = scoreLowerBetter(houses.map((h) => h.school));
@@ -827,7 +870,11 @@
       houses = [...houses].sort((a, b) => {
         if (sortBy === "price") return a.price - b.price;
         if (sortBy === "location") return b.scores.location - a.scores.location;
-        if (sortBy === "totalDrive") return a.totalDrive - b.totalDrive;
+        if (sortBy === "totalDrive") {
+          const ta = a.totalDrive == null ? Infinity : a.totalDrive;
+          const tb = b.totalDrive == null ? Infinity : b.totalDrive;
+          return ta - tb;
+        }
         return b.scores.final - a.scores.final;
       });
 
@@ -869,8 +916,14 @@
                     <span>${basementLabel(h.basement)}</span>
                     ${h.notes ? `<span>${escapeHtml(h.notes)}</span>` : ""}
                   </p>
+                  <div class="metrics">
+                    <div class="metric"><span>TDT</span><strong>${formatMins(h.totalDrive)}</strong></div>
+                    <div class="metric"><span>Location</span><strong>${h.scores.location.toFixed(1)}</strong></div>
+                  </div>
                 </div>
-                <div class="price">${formatMoney(h.price)}</div>
+                <div class="price-block">
+                  <div class="price">${formatMoney(h.price)}</div>
+                </div>
               </div>
               <div class="chips">
                 ${listingChip}
@@ -891,9 +944,9 @@
                   ? `<a href="${escapeHtml(h.listingUrl)}" target="_blank" rel="noopener" data-stop>Open listing</a>`
                   : "Add URL in CSV"
               }</span></div>
-              <div class="stat"><span class="k">Total drive</span><span class="v">${formatMins(h.totalDrive)}</span></div>
+              <div class="stat"><span class="k">Total drive</span><span class="v">${formatMins(h.totalDrive)} <span style="font-weight:400;color:var(--muted)">(excl. School/Work)</span></span></div>
+              <div class="stat"><span class="k">Location score</span><span class="v">${h.scores.location} <span style="font-weight:400;color:var(--muted)">(weighted commutes)</span></span></div>
               <div class="stat"><span class="k">Parking</span><span class="v">${escapeHtml(h.parking || "—")}</span></div>
-              <div class="stat"><span class="k">Location score</span><span class="v">${h.scores.location}</span></div>
             </div>
             <div class="breakdown">
               ${factorBar("Location", h.scores.location)}

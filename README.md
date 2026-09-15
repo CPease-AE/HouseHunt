@@ -89,13 +89,16 @@ Destinations:
 | School | 40 E Dundee Rd, Barrington, IL |
 | Work | 2600 South River Rd, Des Plaines, IL |
 | MSB | 39 E Main St, Carpentersville, IL |
-| School/Work Commute | House → School + School → Work (sum) |
-| Total Drive Time | Girls + School + Work + MSB + School/Work |
+| School/Work Commute | House → School + School → Work (summed; used in Location score only) |
+| Total Drive Time | Girls + School + Work + MSB (**excludes** School/Work Commute) |
+| Location Score | Weighted commute composite (1–10) from the Location mix |
 
 ### `node score_houses.js`
 
 - Reads `(N%)` weights from CSV column headers
 - Writes **Composite Score** (1–10, one decimal)
+- Writes **Location Score** (weighted destination composite, 1–10)
+- Recalculates **Total Drive Time** as Girls+School+Work+MSB (no School/Work)
 - Normalizes basement / type labels in the CSV
 - Weights are normalized if they do not sum to 100%
 
@@ -111,7 +114,7 @@ Destinations:
 
 ## CSV columns & scoring
 
-Weights live in the header, e.g. `Price (35%)`, `Type (10%)`. Edit the percentages, then re-run `score_houses.js`.
+Weights live in the header, e.g. `Price (30%)`, `Type (10%)`. Edit the percentages, then re-run `score_houses.js`.
 
 ### Location mix (feeds the Location pillar)
 
@@ -123,14 +126,14 @@ Weights live in the header, e.g. `Price (35%)`, `Type (10%)`. Edit the percentag
 | Girls | 7.5% | lower time better |
 | Work | 7.5% | lower time better |
 
-Location’s share of the final score is taken from **Total Drive Time (35%)**.
+Location’s share of the final score is taken from **Location Score (30%)**.
 
 ### Final mix
 
 | Factor | Default weight | Direction / notes |
 |--------|----------------|-------------------|
-| Location (via Total Drive Time) | 35% | from location mix above |
-| Price | 35% | lower better |
+| Location Score | 30% | weighted commute composite (not Total Drive Time) |
+| Price | 30% | lower better |
 | Includes Basement | 15% | see basement scale |
 | Type | 10% | Type × basement matrix |
 | Baths | 7.5% | higher better |

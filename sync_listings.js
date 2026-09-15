@@ -357,7 +357,17 @@ async function main() {
       work: parseMinutes(row[col("Work")]),
       msb: parseMinutes(row[col("MSB")]),
       schoolWork: parseMinutes(row[col("School/Work Commute")]),
-      totalDrive: parseMinutes(row[col("Total Drive Time")]),
+      totalDrive: (() => {
+        // Prefer stored Total Drive Time; else sum directs excluding School/Work
+        const stored = parseMinutes(row[col("Total Drive Time")]);
+        if (stored != null) return stored;
+        const g = parseMinutes(row[col("Girls")]) || 0;
+        const s = parseMinutes(row[col("School")]) || 0;
+        const w = parseMinutes(row[col("Work")]) || 0;
+        const m = parseMinutes(row[col("MSB")]) || 0;
+        return g + s + w + m;
+      })(),
+      locationScore: parseNumber(row[col("Location Score")]),
       parking: row[col("Parking")] || "",
       basement: normalizeBasement(row[col("Includes Basement")]),
       type: normalizeType(row[col("Type")]),
