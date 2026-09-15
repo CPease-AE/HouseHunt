@@ -237,7 +237,6 @@ function resolvePhotos(address, listingUrl, index) {
   if (imageLocal) {
     const abs = path.join(ROOT, imageLocal);
     if (!fs.existsSync(abs)) {
-      // Stale path — keep remote URL, try rediscover local file
       imageLocal = null;
     }
   }
@@ -248,6 +247,55 @@ function resolvePhotos(address, listingUrl, index) {
   }
 
   return { imageUrl, imageLocal };
+}
+
+/** Map CSV header (N%) weights → GUI slider keys */
+const FINAL_HEADER_KEYS = {
+  "Location Score": "location",
+  Price: "price",
+  Parking: "parking",
+  "Includes Basement": "basement",
+  Type: "type",
+  Baths: "baths",
+  Beds: "beds",
+  "Sq Ft": "sqft",
+};
+
+const LOC_HEADER_KEYS = {
+  School: "school",
+  MSB: "msb",
+  "School/Work Commute": "schoolWork",
+  Girls: "girls",
+  "Total Drive Time": "totalDrive",
+};
+
+function weightFromHeader(header, baseName) {
+  const idx = findCol(header, baseName);
+  if (idx < 0) return null;
+  const { weightPct } = parseHeader(header[idx]);
+  return weightPct;
+}
+
+function extractWeights(header) {
+  const final = {};
+  for (const [csvName, key] of Object.entries(FINAL_HEADER_KEYS)) {
+    const w = weightFromHeader(header, csvName);
+    if (w != null) final[key] = w;
+  }
+  const location = {};
+  for (const [csvName, key] of Object.entries(LOC_HEADER_KEYS)) {
+    const w = weightFromHeader(header, csvName);
+    if (w != null) location[key] = w;
+  }
+  return { final, location };
+}
+
+function writePayload(listings, weights) {
+  const parts = [
+    "window.LISTINGS_DATA = " + JSON.stringify(listings, null, 2) + ";",
+    "window.WEIGHTS_DATA = " + JSON.stringify(weights, null, 2) + ";",
+  ];
+  fs.writeFileSync(OUT_JS, parts.join("\n\n") + "\n", "utf8");
 }
 
 function main() {
@@ -305,15 +353,26 @@ function main() {
     });
   }
 
-  const payload =
-    "window.LISTINGS_DATA = " + JSON.stringify(listings, null, 2) + ";\n";
-  fs.writeFileSync(OUT_JS, payload, "utf8");
+  const weights = extractWeights(header);
+  writePayload(listings, weights);
 
   console.log("Wrote", OUT_JS, "(" + listings.length + " listings)");
   console.log(
     "Photos preserved:",
     preserved + "/" + listings.length +
       (missing ? ` (${missing} need node fetch_images.js)` : "")
+  );
+  console.log(
+    "Weights from CSV — final:",
+    Object.entries(weights.final)
+      .map(([k, v]) => k + "=" + v + "%")
+      .join(", ")
+  );
+  console.log(
+    "Weights from CSV — location:",
+    Object.entries(weights.location)
+      .map(([k, v]) => k + "=" + v + "%")
+      .join(", ")
   );
 }
 

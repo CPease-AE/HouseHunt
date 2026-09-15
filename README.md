@@ -83,7 +83,7 @@ node fetch_images.js          # missing photos only
 
 ### GUI-only weight experiments
 
-Open `index.html` → **Edit weights**. Sliders rescore live and show a **Total** (aim for 100% per mix). These changes do **not** write back to the CSV until you change the header weights and re-run `score_houses.js`.
+Open `index.html` → **Edit weights**. Sliders start from the CSV header weights (after `sync_listings.js`) and show a **Total** (aim for 100% per mix). Slider tweaks do **not** write back to the CSV until you change the header weights and re-run `score_houses.js` + `sync_listings.js`.
 
 ---
 
@@ -122,8 +122,9 @@ Destinations:
 ### `node sync_listings.js`
 
 - Builds `listings-data.js` from the CSV for `index.html`
+- Syncs header `(N%)` weights into `WEIGHTS_DATA` so GUI sliders match the CSV
 - **No network** — keeps existing `imageUrl` / `imageLocal` by address
-- Run after scoring or any CSV field edits
+- Run after scoring or any CSV field / weight edits
 
 ### `node fetch_images.js`
 

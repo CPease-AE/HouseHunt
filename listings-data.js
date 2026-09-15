@@ -299,3 +299,23 @@ window.LISTINGS_DATA = [
     "compositeScore": 5.9
   }
 ];
+
+window.WEIGHTS_DATA = {
+  "final": {
+    "location": 40,
+    "price": 30,
+    "parking": 0,
+    "basement": 10,
+    "type": 5,
+    "baths": 7.5,
+    "beds": 4,
+    "sqft": 3.5
+  },
+  "location": {
+    "school": 30,
+    "msb": 30,
+    "schoolWork": 25,
+    "girls": 7.5,
+    "totalDrive": 7.5
+  }
+};

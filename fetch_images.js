@@ -91,10 +91,42 @@ function loadExistingListings() {
   }
 }
 
+function loadExistingWeights() {
+  if (!fs.existsSync(OUT_JS)) return { final: {}, location: {} };
+  const text = fs.readFileSync(OUT_JS, "utf8");
+  const marker = "window.WEIGHTS_DATA";
+  const i = text.indexOf(marker);
+  if (i < 0) return { final: {}, location: {} };
+  const start = text.indexOf("{", i);
+  if (start < 0) return { final: {}, location: {} };
+  // Find matching closing brace for the WEIGHTS_DATA object
+  let depth = 0;
+  let end = -1;
+  for (let j = start; j < text.length; j++) {
+    if (text[j] === "{") depth++;
+    else if (text[j] === "}") {
+      depth--;
+      if (depth === 0) {
+        end = j;
+        break;
+      }
+    }
+  }
+  if (end < 0) return { final: {}, location: {} };
+  try {
+    return JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return { final: {}, location: {} };
+  }
+}
+
 function writeListings(listings) {
-  const payload =
-    "window.LISTINGS_DATA = " + JSON.stringify(listings, null, 2) + ";\n";
-  fs.writeFileSync(OUT_JS, payload, "utf8");
+  const weights = loadExistingWeights();
+  const parts = [
+    "window.LISTINGS_DATA = " + JSON.stringify(listings, null, 2) + ";",
+    "window.WEIGHTS_DATA = " + JSON.stringify(weights, null, 2) + ";",
+  ];
+  fs.writeFileSync(OUT_JS, parts.join("\n\n") + "\n", "utf8");
 }
 
 function fetchText(url, redirects = 0, userAgent = null) {
