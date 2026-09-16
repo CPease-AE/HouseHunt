@@ -109,6 +109,7 @@ function normalizeType(raw) {
   const s = String(raw || "").trim().toLowerCase();
   if (!s) return "unknown";
   if (/single[\s-]?family|sfh|^sf$|house|detached/.test(s)) return "single-family";
+  if (/duplex|two[\s-]?flat|2[\s-]?flat|multi[\s-]?family/.test(s)) return "duplex";
   if (/town\s*-?\s*home|townhouse|^th$|row\s*home/.test(s)) return "townhome";
   return "unknown";
 }

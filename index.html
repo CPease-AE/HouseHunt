@@ -560,14 +560,14 @@
       : FALLBACK;
 
     const FALLBACK_FINAL = {
-      location: 35,
-      price: 35,
-      parking: 0,
-      basement: 10,
+      location: 40,
+      price: 30,
+      parking: 5,
+      basement: 5,
       type: 5,
       baths: 7.5,
-      beds: 3.75,
-      sqft: 3.75,
+      beds: 4,
+      sqft: 3.5,
     };
     const FALLBACK_LOC = {
       school: 30,
@@ -670,11 +670,11 @@
     }
 
     function scoreGarage(cars) {
-      if (cars == null) return 5;
-      if (cars <= 0) return 1;
-      if (cars <= 1) return 4;
-      if (cars <= 2) return 8;
-      return 10;
+      // 2+ car → 10; 1 car → 2.5; none → 0
+      if (cars == null || !Number.isFinite(cars) || cars <= 0) return 0;
+      if (cars >= 2) return 10;
+      if (cars >= 1) return 2.5;
+      return 0;
     }
 
     function round1(n) {
@@ -698,7 +698,10 @@
     }
 
     function garageCars(text) {
-      const m = String(text || "").match(/([\d.]+)\s*car/i);
+      const s = String(text || "").trim().toLowerCase();
+      if (!s || /^(none|no|n\/a|street|driveway|0)$/.test(s)) return 0;
+      if (/no\s*garage|without\s*garage|street\s*park/.test(s)) return 0;
+      const m = s.match(/([\d.]+)\s*car/i);
       return m ? parseFloat(m[1]) : null;
     }
 
@@ -732,6 +735,7 @@
       const s = String(raw || "").trim().toLowerCase();
       if (!s) return "unknown";
       if (/single[\s-]?family|sfh|^sf$|house|detached/.test(s)) return "single-family";
+      if (/duplex|two[\s-]?flat|2[\s-]?flat|multi[\s-]?family/.test(s)) return "duplex";
       if (/town\s*-?\s*home|townhouse|^th$|row\s*home/.test(s)) return "townhome";
       return "unknown";
     }
@@ -739,21 +743,24 @@
     function typeLabel(raw) {
       const t = normalizeType(raw);
       if (t === "single-family") return "Single Family";
+      if (t === "duplex") return "Duplex";
       if (t === "townhome") return "Townhome";
       return "Type unknown";
     }
 
-    /** SF+basement=10, TH+basement=7, SF+none=5, TH+none=0 */
+    /** SF 10/5, Duplex 8.5/2.5, TH 7/0 (with / without basement) */
     function typeScore(typeRaw, basementRaw) {
       const type = normalizeType(typeRaw);
       const basement = normalizeBasement(basementRaw);
       const hasBasement = basement === "finished" || basement === "unfinished";
       const noBasement = basement === "none";
-      const sfWith = 10, thWith = 7, sfNone = 5, thNone = 0;
-      function forType(t, withB) {
-        if (t === "single-family") return withB ? sfWith : sfNone;
-        if (t === "townhome") return withB ? thWith : thNone;
-        return withB ? (sfWith + thWith) / 2 : (sfNone + thNone) / 2;
+      const withB = { "single-family": 10, duplex: 8.5, townhome: 7 };
+      const without = { "single-family": 5, duplex: 2.5, townhome: 0 };
+      function forType(t, hasB) {
+        const table = hasB ? withB : without;
+        if (t in table) return table[t];
+        const vals = Object.values(table);
+        return vals.reduce((a, b) => a + b, 0) / vals.length;
       }
       if (hasBasement) return forType(type, true);
       if (noBasement) return forType(type, false);
@@ -1018,6 +1025,7 @@
             <div class="breakdown">
               ${factorBar("Location", h.scores.location)}
               ${factorBar("Price", h.scores.price)}
+              ${factorBar("Parking", h.scores.garage)}
               ${factorBar("Basement", h.scores.basement)}
               ${factorBar("Type", h.scores.type)}
               ${factorBar("Baths", h.scores.baths)}

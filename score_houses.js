@@ -15,7 +15,7 @@
  * Price uses a log utility curve. Commute legs use fixed minute brackets.
  *
  * Basement: finished (10), unfinished (7), unknown (2.5), none (0)
- * Type × basement: SF+basement=10, TH+basement=7, SF+none=5, TH+none=0
+ * Type × basement: SF 10/5, Duplex 8.5/2.5, TH 7/0 (with / without basement)
  */
 const fs = require("fs");
 const path = require("path");
@@ -37,8 +37,8 @@ const DEFAULTS = {
   final: {
     "Location Score": 35,
     Price: 35,
-    Parking: 0,
-    "Includes Basement": 10,
+    Parking: 5,
+    "Includes Basement": 5,
     Type: 5,
     Baths: 7.5,
     Beds: 3.75,
@@ -219,11 +219,11 @@ function scoreBaths(baths) {
 }
 
 function scoreGarage(cars) {
-  if (cars == null) return 5; // unknown → neutral
-  if (cars <= 0) return 1;
-  if (cars <= 1) return 4;
-  if (cars <= 2) return 8;
-  return 10;
+  // >2 (incl. 2.5) or 2+ car → 10; 1 car → 2.5; none → 0
+  if (cars == null || !Number.isFinite(cars) || cars <= 0) return 0;
+  if (cars >= 2) return 10;
+  if (cars >= 1) return 2.5;
+  return 0;
 }
 
 function formatMinutes(n) {
@@ -271,7 +271,10 @@ function round1(n) {
 }
 
 function garageSize(text) {
-  const m = String(text || "").match(/([\d.]+)\s*car/i);
+  const s = String(text || "").trim().toLowerCase();
+  if (!s || /^(none|no|n\/a|street|driveway|0)$/.test(s)) return 0;
+  if (/no\s*garage|without\s*garage|street\s*park/.test(s)) return 0;
+  const m = s.match(/([\d.]+)\s*car/i);
   return m ? parseFloat(m[1]) : null;
 }
 
@@ -301,18 +304,20 @@ function basementScore(kind) {
   }
 }
 
-/** Normalize type cell → single-family | townhome | unknown */
+/** Normalize type cell → single-family | duplex | townhome | unknown */
 function normalizeType(raw) {
   const s = String(raw || "").trim().toLowerCase();
   if (!s) return "unknown";
   if (/single[\s-]?family|sfh|^sf$|house|detached/.test(s)) return "single-family";
+  if (/duplex|two[\s-]?flat|2[\s-]?flat|multi[\s-]?family/.test(s)) return "duplex";
   if (/town\s*-?\s*home|townhouse|^th$|row\s*home/.test(s)) return "townhome";
   return "unknown";
 }
 
 /**
  * Type × basement matrix:
- * SF + basement 10 | TH + basement 7 | SF + none 5 | TH + none 0
+ * SF + basement 10 | Duplex + basement 8.5 | TH + basement 7
+ * SF + none 5     | Duplex + none 2.5     | TH + none 0
  * finished/unfinished count as basement; none = no basement; unknown = midpoint
  */
 function typeScore(typeRaw, basementRaw) {
@@ -321,27 +326,26 @@ function typeScore(typeRaw, basementRaw) {
   const hasBasement = basement === "finished" || basement === "unfinished";
   const noBasement = basement === "none";
 
-  const sfWith = 10;
-  const thWith = 7;
-  const sfNone = 5;
-  const thNone = 0;
+  const withB = { "single-family": 10, duplex: 8.5, townhome: 7 };
+  const without = { "single-family": 5, duplex: 2.5, townhome: 0 };
 
-  function forType(t, withB) {
-    if (t === "single-family") return withB ? sfWith : sfNone;
-    if (t === "townhome") return withB ? thWith : thNone;
-    // unknown type → average SF/TH
-    return withB ? (sfWith + thWith) / 2 : (sfNone + thNone) / 2;
+  function forType(t, hasB) {
+    const table = hasB ? withB : without;
+    if (t in table) return table[t];
+    // unknown type → average of known types
+    const vals = Object.values(table);
+    return vals.reduce((a, b) => a + b, 0) / vals.length;
   }
 
   if (hasBasement) return forType(type, true);
   if (noBasement) return forType(type, false);
-  // unknown basement → midpoint between with/without for that type
   return (forType(type, true) + forType(type, false)) / 2;
 }
 
 function typeLabel(raw) {
   const t = normalizeType(raw);
   if (t === "single-family") return "Single Family";
+  if (t === "duplex") return "Duplex";
   if (t === "townhome") return "Townhome";
   return "Type unknown";
 }
@@ -514,9 +518,11 @@ function main() {
       h.row[typeIdx] =
         h.type === "single-family"
           ? "Single Family"
-          : h.type === "townhome"
-            ? "Townhome"
-            : h.row[typeIdx];
+          : h.type === "duplex"
+            ? "Duplex"
+            : h.type === "townhome"
+              ? "Townhome"
+              : h.row[typeIdx];
     }
   }
 
