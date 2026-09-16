@@ -145,7 +145,7 @@ window.LISTINGS_DATA = [
     "price": 2300,
     "beds": 3,
     "baths": 1.5,
-    "sqft": 1400,
+    "sqft": 1200,
     "girls": 32,
     "school": 28,
     "work": 35,
