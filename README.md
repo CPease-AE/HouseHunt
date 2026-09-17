@@ -181,8 +181,8 @@ Scores stay stable when you add/remove houses. Anchors (editable in `score_house
 | Factor              | Scale                                |
 | ------------------- | ------------------------------------ |
 | Single commute legs | ≤15 min → 10, ≥45 min → 1            |
-| School/Work Commute | ≤35 min → 10, ≥70 min → 1            |
-| Total Drive Time    | ≤90 min → 10, ≥170 min → 1           |
+| School/Work Commute | ≤35 min → 10, ≥65 min → 1            |
+| Total Drive Time    | ≤90 min → 10, ≥150 min → 1           |
 | Price               | linear: ≤$2,000 → 10, ≥$2,800 → 1 (~$150 ≈ 1.7 pts) |
 | Sq Ft               | 1,000 → 1, 2,200 → 10                |
 | Beds                | 1→1, 2→4, 3→7, 4→9, 5+→10            |
@@ -242,6 +242,7 @@ Paste the public listing link (Zillow, Redfin, Coldwell, etc.). `sync_listings.j
 - Click a card for factor breakdown + listing link
 - **Edit weights** — Final mix + Location mix with live totals (on target / under / over 100%)
 - Sort by composite score, price, location, or total drive time
+- **Current-home benchmark** — put `default` in Notes; card is highlighted and pinned, scored for comparison, excluded from median sq ft
 
 Data source: `listings-data.js` (from sync). If that file is missing, the page falls back to embedded sample data.
 
@@ -252,4 +253,5 @@ Data source: `listings-data.js` (from sync). If that file is missing, the page f
 - Close the CSV in Excel before running scripts if you get `EBUSY` / file locked errors.
 - After filling new **Listing URL** values, run `sync_listings.js` then `fetch_images.js` before judging GUI photos.
 - Keep header weight totals near 100% per mix for clarity; the scorer still normalizes if they drift.
+- Add your current address with `default` in **Notes** as a benchmark; it won’t change other listings’ absolute scores.
 

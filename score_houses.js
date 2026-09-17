@@ -51,9 +51,9 @@ const SCALES = {
   legBestMin: 15, // single destination: ≤15 → 10
   legWorstMin: 45, // ≥45 → 1
   schoolWorkBestMin: 35,
-  schoolWorkWorstMin: 70,
+  schoolWorkWorstMin: 65,
   tdtBestMin: 90, // Total Drive Time (4 directs)
-  tdtWorstMin: 170,
+  tdtWorstMin: 150,
   priceBest: 2000, // linear: ≤$2000 → 10 (~$150 ≈ 1.7 pts)
   priceWorst: 2800, // ≥$2800 → 1
   sqftLow: 1000, // → 1
@@ -265,6 +265,11 @@ function round1(n) {
   return Math.round(n * 10) / 10;
 }
 
+/** Notes containing "default" mark the current-home benchmark (scored, not used for medians). */
+function isBenchmark(notes) {
+  return /\bdefault\b/i.test(String(notes || ""));
+}
+
 function garageSize(text) {
   const s = String(text || "").trim().toLowerCase();
   if (!s || /^(none|no|n\/a|street|driveway|0)$/.test(s)) return 0;
@@ -411,6 +416,7 @@ function main() {
   const typeIdx = findCol(header, "Type");
   const parkingIdx = findCol(header, "Parking");
   const brokerageIdx = findCol(header, "Brokerage Comp");
+  const notesIdx = findCol(header, "Notes");
 
   // Undo accidental "unknown" written into Brokerage Comp during a prior bad run
   if (brokerageIdx >= 0) {
@@ -488,6 +494,8 @@ function main() {
       basement: normalizeBasement(r[basementIdx]),
       type: typeIdx >= 0 ? normalizeType(r[typeIdx]) : "unknown",
       garage: parkingIdx >= 0 ? garageSize(r[parkingIdx]) : null,
+      notes: notesIdx >= 0 ? r[notesIdx] : "",
+      benchmark: isBenchmark(notesIdx >= 0 ? r[notesIdx] : ""),
     };
   });
 
@@ -506,7 +514,10 @@ function main() {
     }
   }
 
-  const knownSqft = houses.map((h) => h.sqft).filter((v) => v != null);
+  const knownSqft = houses
+    .filter((h) => !h.benchmark)
+    .map((h) => h.sqft)
+    .filter((v) => v != null);
   const sqftMedian = knownSqft.length ? median(knownSqft) : 1500;
   for (const h of houses) {
     h.sqftFilled = h.sqft != null ? h.sqft : sqftMedian;
@@ -589,17 +600,30 @@ function main() {
   fs.writeFileSync(CSV_PATH, toCsv([header, ...dataRows]), "utf8");
 
   const ranked = [...houses].sort((a, b) => b.scores.final - a.scores.final);
+  const benchmarks = ranked.filter((h) => h.benchmark);
+  const candidates = ranked.filter((h) => !h.benchmark);
+
   console.log("\nRanked scores (best first):\n");
   console.log(
     "Score | Location | Price | Basement | Beds | Baths | SqFt | Address"
   );
   console.log("-".repeat(100));
-  for (const h of ranked) {
+  for (const h of candidates) {
     const s = h.scores;
     const short = String(h.address || "").split(",")[0].trim();
     console.log(
       `${s.final.toFixed(1).padStart(5)} | ${String(s.location).padStart(8)} | ${String(s.price).padStart(5)} | ${String(s.basement).padStart(8)} | ${String(s.beds).padStart(4)} | ${String(s.baths).padStart(5)} | ${String(s.sqft).padStart(4)} | ${short}`
     );
+  }
+  if (benchmarks.length) {
+    console.log("\nBenchmark (Notes: default — scored for comparison, excluded from median sq ft):\n");
+    for (const h of benchmarks) {
+      const s = h.scores;
+      const short = String(h.address || "").split(",")[0].trim();
+      console.log(
+        `${s.final.toFixed(1).padStart(5)} | ${String(s.location).padStart(8)} | ${String(s.price).padStart(5)} | ${String(s.basement).padStart(8)} | ${String(s.beds).padStart(4)} | ${String(s.baths).padStart(5)} | ${String(s.sqft).padStart(4)} | ${short}  ← current home`
+      );
+    }
   }
   console.log(`\nUpdated ${CSV_PATH}`);
   console.log(

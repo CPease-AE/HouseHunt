@@ -350,6 +350,7 @@ function main() {
       type: normalizeType(row[col("Type")]),
       contact: row[col("Contact")] || "",
       notes: row[col("Notes")] || "",
+      benchmark: /\bdefault\b/i.test(String(row[col("Notes")] || "")),
       compositeScore: parseNumber(row[col("Composite Score")]),
     });
   }

@@ -238,6 +238,35 @@
       box-shadow: var(--shadow);
     }
 
+    .house.benchmark {
+      border-color: rgba(196, 107, 44, 0.45);
+      background:
+        linear-gradient(135deg, rgba(196, 107, 44, 0.08), transparent 42%),
+        var(--panel);
+      box-shadow: 0 8px 28px rgba(196, 107, 44, 0.12);
+    }
+    .house.benchmark:hover,
+    .house.benchmark.open {
+      border-color: rgba(196, 107, 44, 0.65);
+      box-shadow: 0 14px 36px rgba(196, 107, 44, 0.16);
+    }
+    .bench-badge {
+      display: inline-block;
+      margin: 0 0 0.35rem;
+      padding: 0.18rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #7a3d12;
+      background: rgba(196, 107, 44, 0.18);
+      border: 1px solid rgba(196, 107, 44, 0.35);
+    }
+    .score-badge.bench {
+      background: linear-gradient(145deg, #c46b2c, #8a4518);
+    }
+
     .house-summary {
       display: grid;
       grid-template-columns: 10.5rem 1fr;
@@ -346,6 +375,14 @@
       color: var(--accent-deep);
       white-space: nowrap;
     }
+    .price-delta {
+      font-size: 0.78rem;
+      font-weight: 500;
+      white-space: nowrap;
+      color: var(--muted);
+    }
+    .price-delta.cheaper { color: var(--accent); }
+    .price-delta.pricier { color: var(--warm); }
     .metrics {
       display: flex;
       flex-wrap: wrap;
@@ -605,9 +642,9 @@
       legBestMin: 15,
       legWorstMin: 45,
       schoolWorkBestMin: 35,
-      schoolWorkWorstMin: 70,
+      schoolWorkWorstMin: 65,
       tdtBestMin: 90,
-      tdtWorstMin: 170,
+      tdtWorstMin: 150,
       priceBest: 2000,
       priceWorst: 2800,
       sqftLow: 1000,
@@ -679,6 +716,18 @@
 
     function formatMoney(n) {
       return "$" + n.toLocaleString("en-US");
+    }
+
+    function formatPriceDelta(price, baseline) {
+      if (price == null || !Number.isFinite(price)) return null;
+      if (baseline == null || !Number.isFinite(baseline)) return null;
+      const d = Math.round(price - baseline);
+      if (d === 0) return { text: "same as current", cls: "" };
+      const sign = d > 0 ? "+" : "−";
+      return {
+        text: `${sign}$${Math.abs(d).toLocaleString("en-US")}/mo vs current`,
+        cls: d > 0 ? "pricier" : "cheaper",
+      };
     }
 
     function formatMins(m) {
@@ -775,8 +824,27 @@
       return h.imageLocal || h.imageUrl || null;
     }
 
+    function isBenchmark(h) {
+      if (h && h.benchmark === true) return true;
+      return /\bdefault\b/i.test(String((h && h.notes) || ""));
+    }
+
+    /** Strip the "default" marker from Notes for display */
+    function displayNotes(notes) {
+      return String(notes || "")
+        .replace(/\bdefault\b/gi, "")
+        .replace(/^[;,\s|/.-]+|[;,\s|/.-]+$/g, "")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+    }
+
     function scoreAll() {
-      const sqftMedian = median(RAW.map((h) => h.sqft).filter((v) => v != null)) || 1500;
+      const sqftMedian =
+        median(
+          RAW.filter((h) => !isBenchmark(h))
+            .map((h) => h.sqft)
+            .filter((v) => v != null)
+        ) || 1500;
       const houses = RAW.map((h, i) => {
         const girls = h.girls;
         const school = h.school;
@@ -789,6 +857,7 @@
         return {
           ...h,
           id: i,
+          benchmark: isBenchmark(h),
           totalDrive,
           sqftFilled: h.sqft != null ? h.sqft : sqftMedian,
           garage: garageCars(h.parking),
@@ -927,7 +996,7 @@
 
       let houses = scoreAll();
       const sortBy = document.getElementById("sortBy").value;
-      houses = [...houses].sort((a, b) => {
+      const bySort = (a, b) => {
         if (sortBy === "price") return a.price - b.price;
         if (sortBy === "location") return b.scores.location - a.scores.location;
         if (sortBy === "totalDrive") {
@@ -936,14 +1005,24 @@
           return ta - tb;
         }
         return b.scores.final - a.scores.final;
-      });
+      };
+      // Pin current-home benchmark above candidates; still scored for comparison
+      const benchmarks = houses.filter((h) => h.benchmark).sort(bySort);
+      const candidates = houses.filter((h) => !h.benchmark).sort(bySort);
+      houses = [...benchmarks, ...candidates];
+      const baselinePrice = benchmarks.find(
+        (h) => h.price != null && Number.isFinite(h.price)
+      )?.price;
 
       const list = document.getElementById("list");
       list.innerHTML = "";
 
       houses.forEach((h, idx) => {
         const el = document.createElement("article");
-        el.className = "house" + (openId === h.id ? " open" : "");
+        el.className =
+          "house" +
+          (h.benchmark ? " benchmark" : "") +
+          (openId === h.id ? " open" : "");
         el.style.animationDelay = idx * 0.04 + "s";
         el.tabIndex = 0;
         el.setAttribute("role", "button");
@@ -959,13 +1038,25 @@
           ? `<a class="chip link" href="${escapeHtml(h.listingUrl)}" target="_blank" rel="noopener" data-stop>View listing</a>`
           : `<div class="chip"><span>Listing</span>URL needed</div>`;
 
+        const notesShown = displayNotes(h.notes);
+        const benchBadge = h.benchmark
+          ? `<span class="bench-badge">Current home</span>`
+          : "";
+        const delta = h.benchmark
+          ? { text: "your current rent", cls: "" }
+          : formatPriceDelta(h.price, baselinePrice);
+        const deltaHtml = delta
+          ? `<div class="price-delta ${delta.cls}">${escapeHtml(delta.text)}</div>`
+          : "";
+
         el.innerHTML = `
           <div class="house-summary">
             ${thumbHtml}
             <div class="house-main">
               <div class="house-top">
-                <div class="score-badge ${scoreClass(h.scores.final)}">${h.scores.final.toFixed(1)}</div>
+                <div class="score-badge ${h.benchmark ? "bench" : scoreClass(h.scores.final)}">${h.scores.final.toFixed(1)}</div>
                 <div>
+                  ${benchBadge}
                   <h2 class="addr">${escapeHtml(shortAddress(h.address))}</h2>
                   <p class="full-addr">${escapeHtml(h.address)}</p>
                   <p class="meta">
@@ -974,7 +1065,7 @@
                     <span><strong>${sqftLabel}</strong></span>
                     <span>${typeLabel(h.type)}</span>
                     <span>${basementLabel(h.basement)}</span>
-                    ${h.notes ? `<span>${escapeHtml(h.notes)}</span>` : ""}
+                    ${notesShown ? `<span>${escapeHtml(notesShown)}</span>` : ""}
                   </p>
                   <div class="metrics">
                     <div class="metric"><span>TDT</span><strong>${formatMins(h.totalDrive)}</strong></div>
@@ -983,6 +1074,7 @@
                 </div>
                 <div class="price-block">
                   <div class="price">${formatMoney(h.price)}</div>
+                  ${deltaHtml}
                 </div>
               </div>
               <div class="chips">
@@ -1007,6 +1099,11 @@
               <div class="stat"><span class="k">Total drive</span><span class="v">${formatMins(h.totalDrive)} <span style="font-weight:400;color:var(--muted)">(excl. School/Work)</span></span></div>
               <div class="stat"><span class="k">Location score</span><span class="v">${h.scores.location} <span style="font-weight:400;color:var(--muted)">(weighted commutes)</span></span></div>
               <div class="stat"><span class="k">Parking</span><span class="v">${escapeHtml(h.parking || "—")}</span></div>
+              ${
+                h.benchmark
+                  ? `<div class="stat"><span class="k">Role</span><span class="v">Current-home benchmark (comparison only)</span></div>`
+                  : ""
+              }
             </div>
             <div class="breakdown">
               ${factorBar("Location", h.scores.location)}
