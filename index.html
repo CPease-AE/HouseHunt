@@ -608,8 +608,8 @@
       schoolWorkWorstMin: 70,
       tdtBestMin: 90,
       tdtWorstMin: 170,
-      priceBest: 1800,
-      priceWorst: 3800,
+      priceBest: 2000,
+      priceWorst: 2800,
       sqftLow: 1000,
       sqftHigh: 2200,
     };
@@ -644,11 +644,7 @@
     }
 
     function scorePrice(price) {
-      if (price == null || !Number.isFinite(price) || price <= 0) return null;
-      const lo = SCALES.priceBest;
-      const hi = SCALES.priceWorst;
-      const t = (Math.log(price) - Math.log(lo)) / (Math.log(hi) - Math.log(lo));
-      return clampScore(10 - 9 * t);
+      return scoreLowerAbsolute(price, SCALES.priceBest, SCALES.priceWorst);
     }
 
     function scoreBeds(beds) {
@@ -748,23 +744,13 @@
       return "Type unknown";
     }
 
-    /** SF 10/5, Duplex 8.5/2.5, TH 7/0 (with / without basement) */
-    function typeScore(typeRaw, basementRaw) {
+    /** SF 10, Duplex 6.5, Townhome 3.5 (basement scored separately) */
+    function typeScore(typeRaw) {
       const type = normalizeType(typeRaw);
-      const basement = normalizeBasement(basementRaw);
-      const hasBasement = basement === "finished" || basement === "unfinished";
-      const noBasement = basement === "none";
-      const withB = { "single-family": 10, duplex: 8.5, townhome: 7 };
-      const without = { "single-family": 5, duplex: 2.5, townhome: 0 };
-      function forType(t, hasB) {
-        const table = hasB ? withB : without;
-        if (t in table) return table[t];
-        const vals = Object.values(table);
-        return vals.reduce((a, b) => a + b, 0) / vals.length;
-      }
-      if (hasBasement) return forType(type, true);
-      if (noBasement) return forType(type, false);
-      return (forType(type, true) + forType(type, false)) / 2;
+      const scores = { "single-family": 10, duplex: 6.5, townhome: 3.5 };
+      if (type in scores) return scores[type];
+      const vals = Object.values(scores);
+      return vals.reduce((a, b) => a + b, 0) / vals.length;
     }
 
     function normalize(map) {
@@ -835,7 +821,7 @@
         scoreHigherAbsolute(h.sqftFilled, SCALES.sqftLow, SCALES.sqftHigh)
       );
       const basementS = houses.map((h) => basementScore(h.basement));
-      const typeS = houses.map((h) => typeScore(h.type, h.basement));
+      const typeS = houses.map((h) => typeScore(h.type));
       const garageS = houses.map((h) => scoreGarage(h.garage));
 
       const locN = normalize(locW);

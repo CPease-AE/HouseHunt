@@ -12,10 +12,10 @@
  * Final factor weights: Location Score, Price, Parking, Includes Basement, Type, Baths, Beds, Sq Ft
  *
  * Continuous factors use absolute Chicago-suburb scales (not shortlist min–max).
- * Price uses a log utility curve. Commute legs use fixed minute brackets.
+ * Price uses a tight linear band (~$150 ≈ 1.7 pts). Commute legs use fixed minute brackets.
  *
  * Basement: finished (10), unfinished (7), unknown (2.5), none (0)
- * Type × basement: SF 10/5, Duplex 8.5/2.5, TH 7/0 (with / without basement)
+ * Type (independent of basement): SF 10, Duplex 6.5, Townhome 3.5
  */
 const fs = require("fs");
 const path = require("path");
@@ -54,8 +54,8 @@ const SCALES = {
   schoolWorkWorstMin: 70,
   tdtBestMin: 90, // Total Drive Time (4 directs)
   tdtWorstMin: 170,
-  priceBest: 1800, // log utility: $1800 → 10
-  priceWorst: 3800, // $3800 → 1
+  priceBest: 2000, // linear: ≤$2000 → 10 (~$150 ≈ 1.7 pts)
+  priceWorst: 2800, // ≥$2800 → 1
   sqftLow: 1000, // → 1
   sqftHigh: 2200, // → 10
 };
@@ -190,14 +190,9 @@ function scoreHigherAbsolute(value, low, high) {
   return 1 + (9 * (value - low)) / (high - low);
 }
 
-/** Log price utility: equal $ deltas hurt more at the high end */
+/** Linear price: equal $ deltas score equally within the tight rent band */
 function scorePrice(price) {
-  if (price == null || !Number.isFinite(price) || price <= 0) return null;
-  const lo = SCALES.priceBest;
-  const hi = SCALES.priceWorst;
-  const t =
-    (Math.log(price) - Math.log(lo)) / (Math.log(hi) - Math.log(lo));
-  return clampScore(10 - 9 * t);
+  return scoreLowerAbsolute(price, SCALES.priceBest, SCALES.priceWorst);
 }
 
 function scoreBeds(beds) {
@@ -315,31 +310,16 @@ function normalizeType(raw) {
 }
 
 /**
- * Type × basement matrix:
- * SF + basement 10 | Duplex + basement 8.5 | TH + basement 7
- * SF + none 5     | Duplex + none 2.5     | TH + none 0
- * finished/unfinished count as basement; none = no basement; unknown = midpoint
+ * Type only (basement is a separate pillar — do not double-count):
+ * Single Family 10 | Duplex 6.5 | Townhome 3.5
+ * Unknown type → average of the three.
  */
-function typeScore(typeRaw, basementRaw) {
+function typeScore(typeRaw) {
   const type = normalizeType(typeRaw);
-  const basement = normalizeBasement(basementRaw);
-  const hasBasement = basement === "finished" || basement === "unfinished";
-  const noBasement = basement === "none";
-
-  const withB = { "single-family": 10, duplex: 8.5, townhome: 7 };
-  const without = { "single-family": 5, duplex: 2.5, townhome: 0 };
-
-  function forType(t, hasB) {
-    const table = hasB ? withB : without;
-    if (t in table) return table[t];
-    // unknown type → average of known types
-    const vals = Object.values(table);
-    return vals.reduce((a, b) => a + b, 0) / vals.length;
-  }
-
-  if (hasBasement) return forType(type, true);
-  if (noBasement) return forType(type, false);
-  return (forType(type, true) + forType(type, false)) / 2;
+  const scores = { "single-family": 10, duplex: 6.5, townhome: 3.5 };
+  if (type in scores) return scores[type];
+  const vals = Object.values(scores);
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
 }
 
 function typeLabel(raw) {
@@ -564,7 +544,7 @@ function main() {
     scoreHigherAbsolute(h.sqftFilled, SCALES.sqftLow, SCALES.sqftHigh)
   );
   const basementS = houses.map((h) => basementScore(h.basement));
-  const typeS = houses.map((h) => typeScore(h.type, h.basement));
+  const typeS = houses.map((h) => typeScore(h.type));
   const garageS = houses.map((h) => scoreGarage(h.garage));
 
   for (let i = 0; i < houses.length; i++) {

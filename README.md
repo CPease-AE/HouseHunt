@@ -164,10 +164,10 @@ Location’s share of the final score is taken from **Location Score (35%)**.
 | Factor            | Default weight | Direction / notes                  |
 | ----------------- | -------------- | ---------------------------------- |
 | Location Score    | 40%            | weighted commute composite         |
-| Price             | 30%            | log utility (absolute)             |
+| Price             | 30%            | linear absolute ($2k–$2.8k band)   |
 | Parking           | 5%             | see parking scale                  |
 | Includes Basement | 5%             | see basement scale                 |
-| Type              | 5%             | Type × basement matrix             |
+| Type              | 5%             | SF / Duplex / Townhome (no basement) |
 | Baths             | 7.5%           | absolute brackets                  |
 | Beds              | 4%             | absolute brackets                  |
 | Sq Ft             | 3.5%           | absolute scale (missing → median)  |
@@ -183,7 +183,7 @@ Scores stay stable when you add/remove houses. Anchors (editable in `score_house
 | Single commute legs | ≤15 min → 10, ≥45 min → 1            |
 | School/Work Commute | ≤35 min → 10, ≥70 min → 1            |
 | Total Drive Time    | ≤90 min → 10, ≥170 min → 1           |
-| Price               | log curve: ~$1,800 → 10, ~$3,800 → 1 |
+| Price               | linear: ≤$2,000 → 10, ≥$2,800 → 1 (~$150 ≈ 1.7 pts) |
 | Sq Ft               | 1,000 → 1, 2,200 → 10                |
 | Beds                | 1→1, 2→4, 3→7, 4→9, 5+→10            |
 | Baths               | 1→1, 1.5→4, 2→6.5, 2.5→8.5, 3+→10    |
@@ -217,19 +217,17 @@ Allowed values:
 
 ### Type
 
-Allowed values: `Single Family`, `Duplex`, or `Townhome`.
-
-Type score (uses basement status):
+Allowed values: `Single Family`, `Duplex`, or `Townhome`. Scored independently of basement (basement is its own pillar).
 
 
-|                   | Basement (`finished` / `unfinished`) | No basement (`none`) |
-| ----------------- | ------------------------------------ | -------------------- |
-| **Single Family** | 10                                   | 5                    |
-| **Duplex**        | 8.5                                  | 2.5                  |
-| **Townhome**      | 7                                    | 0                    |
+| Type              | Score |
+| ----------------- | ----- |
+| **Single Family** | 10    |
+| **Duplex**        | 6.5   |
+| **Townhome**      | 3.5   |
 
 
-`unknown` basement → midpoint for that type. Blank Type → average of SF / Duplex / TH for that basement state.
+Blank / unknown Type → average of the three (≈6.7).
 
 ### Listing URL
 
