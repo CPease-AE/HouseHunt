@@ -375,6 +375,17 @@
       color: var(--accent-deep);
       white-space: nowrap;
     }
+    .price-fuel {
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--muted);
+      white-space: nowrap;
+      margin-top: 0.1rem;
+    }
+    .price-fuel strong {
+      color: var(--ink-soft);
+      font-weight: 650;
+    }
     .price-delta {
       font-size: 0.78rem;
       font-weight: 500;
@@ -549,7 +560,7 @@
   <div class="wrap">
     <header class="hero">
       <h1 class="brand">House Hunt</h1>
-      <p class="lede">Compare shortlisted rentals by weighted commute, price, and home fit. Paste listing URLs in the CSV, sync images, then tune weights here.</p>
+      <p class="lede">Compare shortlisted rentals by weighted commute, price, home fit, and estimated monthly fuel. Paste listing URLs in the CSV, sync images, then tune weights here.</p>
     </header>
 
     <div class="toolbar">
@@ -560,7 +571,9 @@
         <option value="score">Composite score</option>
         <option value="location">Location score (high → low)</option>
         <option value="totalDrive">Total drive time (low → high)</option>
+        <option value="fuel">Monthly fuel (low → high)</option>
         <option value="price">Price (low → high)</option>
+        <option value="net">Net cost (low → high)</option>
       </select>
     </div>
 
@@ -635,6 +648,17 @@
       schoolWork: "School/Work",
       girls: "Girls",
       totalDrive: "Total drive",
+    };
+
+    /**
+     * Monthly fuel from Total Drive Time (Girls+School+Work+MSB).
+     * miles ≈ TDT_min/60 × avgMph; cost = miles/mpg × $/gal × workdays
+     */
+    const FUEL = {
+      avgMph: 35,
+      mpg: 22, // Volvo XC70 P3 AWD real-world
+      gasPrice: 4, // Lake County IL
+      workdays: 20,
     };
 
     /** Absolute score anchors (match score_houses.js) */
@@ -718,14 +742,26 @@
       return "$" + n.toLocaleString("en-US");
     }
 
+    function monthlyFuelCost(totalDriveMin) {
+      if (totalDriveMin == null || !Number.isFinite(totalDriveMin) || totalDriveMin <= 0)
+        return null;
+      const milesPerDay = (totalDriveMin / 60) * FUEL.avgMph;
+      return (milesPerDay / FUEL.mpg) * FUEL.gasPrice * FUEL.workdays;
+    }
+
+    function formatFuel(n) {
+      if (n == null || !Number.isFinite(n)) return "—";
+      return "$" + Math.round(n).toLocaleString("en-US") + "/mo";
+    }
+
     function formatPriceDelta(price, baseline) {
       if (price == null || !Number.isFinite(price)) return null;
       if (baseline == null || !Number.isFinite(baseline)) return null;
       const d = Math.round(price - baseline);
-      if (d === 0) return { text: "same as current", cls: "" };
+      if (d === 0) return { text: "same net as current", cls: "" };
       const sign = d > 0 ? "+" : "−";
       return {
-        text: `${sign}$${Math.abs(d).toLocaleString("en-US")}/mo vs current`,
+        text: `${sign}$${Math.abs(d).toLocaleString("en-US")} net vs current`,
         cls: d > 0 ? "pricier" : "cheaper",
       };
     }
@@ -999,10 +1035,19 @@
       const bySort = (a, b) => {
         if (sortBy === "price") return a.price - b.price;
         if (sortBy === "location") return b.scores.location - a.scores.location;
-        if (sortBy === "totalDrive") {
+        if (sortBy === "totalDrive" || sortBy === "fuel") {
           const ta = a.totalDrive == null ? Infinity : a.totalDrive;
           const tb = b.totalDrive == null ? Infinity : b.totalDrive;
           return ta - tb;
+        }
+        if (sortBy === "net") {
+          const netOf = (h) => {
+            const fuel = monthlyFuelCost(h.totalDrive);
+            if (h.price == null || !Number.isFinite(h.price) || fuel == null)
+              return Infinity;
+            return h.price + fuel;
+          };
+          return netOf(a) - netOf(b);
         }
         return b.scores.final - a.scores.final;
       };
@@ -1010,9 +1055,17 @@
       const benchmarks = houses.filter((h) => h.benchmark).sort(bySort);
       const candidates = houses.filter((h) => !h.benchmark).sort(bySort);
       houses = [...benchmarks, ...candidates];
-      const baselinePrice = benchmarks.find(
+      const baselineHouse = benchmarks.find(
         (h) => h.price != null && Number.isFinite(h.price)
-      )?.price;
+      );
+      const baselinePrice = baselineHouse?.price;
+      const baselineFuel = baselineHouse
+        ? monthlyFuelCost(baselineHouse.totalDrive)
+        : null;
+      const baselineNet =
+        baselinePrice != null && baselineFuel != null
+          ? baselinePrice + baselineFuel
+          : null;
 
       const list = document.getElementById("list");
       list.innerHTML = "";
@@ -1042,12 +1095,21 @@
         const benchBadge = h.benchmark
           ? `<span class="bench-badge">Current home</span>`
           : "";
+        const fuel = monthlyFuelCost(h.totalDrive);
+        const net =
+          h.price != null && Number.isFinite(h.price) && fuel != null
+            ? h.price + fuel
+            : null;
         const delta = h.benchmark
-          ? { text: "your current rent", cls: "" }
-          : formatPriceDelta(h.price, baselinePrice);
+          ? { text: "your current net", cls: "" }
+          : formatPriceDelta(net, baselineNet);
         const deltaHtml = delta
           ? `<div class="price-delta ${delta.cls}">${escapeHtml(delta.text)}</div>`
           : "";
+        const fuelSubHtml =
+          fuel != null && net != null
+            ? `<div class="price-fuel">+${formatMoney(Math.round(fuel))} fuel → <strong>${formatMoney(Math.round(net))} net</strong></div>`
+            : "";
 
         el.innerHTML = `
           <div class="house-summary">
@@ -1074,6 +1136,7 @@
                 </div>
                 <div class="price-block">
                   <div class="price">${formatMoney(h.price)}</div>
+                  ${fuelSubHtml}
                   ${deltaHtml}
                 </div>
               </div>
@@ -1097,6 +1160,7 @@
                   : "Add URL in CSV"
               }</span></div>
               <div class="stat"><span class="k">Total drive</span><span class="v">${formatMins(h.totalDrive)} <span style="font-weight:400;color:var(--muted)">(excl. School/Work)</span></span></div>
+              <div class="stat"><span class="k">Monthly fuel</span><span class="v">${formatFuel(fuel)} <span style="font-weight:400;color:var(--muted)">(${FUEL.avgMph} mph · ${FUEL.mpg} mpg · $${FUEL.gasPrice.toFixed(2)}/gal · ${FUEL.workdays} days)</span></span></div>
               <div class="stat"><span class="k">Location score</span><span class="v">${h.scores.location} <span style="font-weight:400;color:var(--muted)">(weighted commutes)</span></span></div>
               <div class="stat"><span class="k">Parking</span><span class="v">${escapeHtml(h.parking || "—")}</span></div>
               ${

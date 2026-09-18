@@ -241,8 +241,9 @@ Paste the public listing link (Zillow, Redfin, Coldwell, etc.). `sync_listings.j
 - Full address under the short title
 - Click a card for factor breakdown + listing link
 - **Edit weights** — Final mix + Location mix with live totals (on target / under / over 100%)
-- Sort by composite score, price, location, or total drive time
+- Sort by composite score, price, location, total drive time, monthly fuel, or net cost (rent + fuel)
 - **Current-home benchmark** — put `default` in Notes; card is highlighted and pinned, scored for comparison, excluded from median sq ft
+- **Monthly fuel** — estimated from Total Drive Time: `(TDT_min / 60 × 35 mph) / 22 mpg × $3.80/gal × 20 workdays` (Volvo XC70 P3 AWD; Lake County IL gas). Shown on each card with delta vs current home.
 
 Data source: `listings-data.js` (from sync). If that file is missing, the page falls back to embedded sample data.
 
