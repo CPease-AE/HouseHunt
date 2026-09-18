@@ -546,12 +546,25 @@
     }
 
     @media (max-width: 700px) {
-      .house-summary { grid-template-columns: 7.5rem 1fr; min-height: 7.5rem; }
-      .thumb-wrap, .thumb-placeholder {
-        min-height: 7.5rem;
+      .house-summary {
+        grid-template-columns: 1fr;
+        min-height: 0;
       }
-      .house-top { grid-template-columns: auto 1fr; }
-      .price { grid-column: 2; }
+      .thumb-wrap,
+      .thumb-placeholder {
+        min-height: 11.5rem;
+        border-right: none;
+        border-bottom: 1px solid var(--line);
+      }
+      .house-top {
+        grid-template-columns: auto 1fr;
+      }
+      .price-block {
+        grid-column: 1 / -1;
+        text-align: left;
+        justify-items: start;
+        margin-top: 0.15rem;
+      }
       .sort-label { margin-left: 0; }
     }
   </style>
